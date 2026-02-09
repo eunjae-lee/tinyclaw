@@ -4,6 +4,7 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TMUX_SESSION="tinyclaw"
 LOG_DIR="$SCRIPT_DIR/.tinyclaw/logs"
+SETTINGS_FILE="$SCRIPT_DIR/.tinyclaw/settings.json"
 
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -15,6 +16,19 @@ mkdir -p "$LOG_DIR"
 
 log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$LOG_DIR/daemon.log"
+}
+
+# Load settings from JSON
+load_settings() {
+    if [ ! -f "$SETTINGS_FILE" ]; then
+        return 1
+    fi
+
+    CHANNEL=$(grep -o '"channel"[[:space:]]*:[[:space:]]*"[^"]*"' "$SETTINGS_FILE" | cut -d'"' -f4)
+    MODEL=$(grep -o '"model"[[:space:]]*:[[:space:]]*"[^"]*"' "$SETTINGS_FILE" | cut -d'"' -f4)
+    DISCORD_TOKEN=$(grep -o '"discord_bot_token"[[:space:]]*:[[:space:]]*"[^"]*"' "$SETTINGS_FILE" | cut -d'"' -f4)
+
+    return 0
 }
 
 # Check if session exists
@@ -45,69 +59,23 @@ start_daemon() {
         npm run build
     fi
 
-    # Configuration
-    CHANNEL_CONFIG="$SCRIPT_DIR/.tinyclaw/channel"
-    MODEL_CONFIG="$SCRIPT_DIR/.tinyclaw/model"
+    # Load settings or run setup wizard
+    if ! load_settings; then
+        echo -e "${YELLOW}No configuration found. Running setup wizard...${NC}"
+        echo ""
+        "$SCRIPT_DIR/setup-wizard.sh"
+
+        # Reload settings after setup
+        if ! load_settings; then
+            echo -e "${RED}Setup failed or was cancelled${NC}"
+            return 1
+        fi
+    fi
+
+    # Set channel flags
     HAS_DISCORD=false
     HAS_WHATSAPP=false
 
-    # First-run setup
-    if [ ! -f "$CHANNEL_CONFIG" ] || [ ! -f "$MODEL_CONFIG" ]; then
-        echo ""
-        echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-        echo -e "${GREEN}  TinyClaw - First Time Setup${NC}"
-        echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-        echo ""
-
-        if [ ! -f "$CHANNEL_CONFIG" ]; then
-            echo "Which messaging channel do you want to use?"
-            echo ""
-            echo "  1) Discord"
-            echo "  2) WhatsApp"
-            echo "  3) Both"
-            echo ""
-            read -rp "Choose [1-3]: " CHANNEL_CHOICE
-
-            case "$CHANNEL_CHOICE" in
-                1) echo "discord" > "$CHANNEL_CONFIG" ;;
-                2) echo "whatsapp" > "$CHANNEL_CONFIG" ;;
-                3) echo "both" > "$CHANNEL_CONFIG" ;;
-                *)
-                    echo -e "${RED}Invalid choice${NC}"
-                    return 1
-                    ;;
-            esac
-            echo -e "${GREEN}✓ Channel: $(cat "$CHANNEL_CONFIG")${NC}"
-            echo ""
-        fi
-
-        if [ ! -f "$MODEL_CONFIG" ]; then
-            echo "Which Claude model?"
-            echo ""
-            echo "  1) Sonnet  (fast, recommended)"
-            echo "  2) Opus    (smartest)"
-            echo ""
-            read -rp "Choose [1-2]: " MODEL_CHOICE
-
-            case "$MODEL_CHOICE" in
-                1) echo "sonnet" > "$MODEL_CONFIG" ;;
-                2) echo "opus" > "$MODEL_CONFIG" ;;
-                *)
-                    echo -e "${RED}Invalid choice${NC}"
-                    return 1
-                    ;;
-            esac
-            echo -e "${GREEN}✓ Model: $(cat "$MODEL_CONFIG")${NC}"
-            echo ""
-        fi
-
-        echo -e "  (Run './tinyclaw.sh setup' to change later)"
-        echo ""
-    fi
-
-    CHANNEL=$(cat "$CHANNEL_CONFIG")
-
-    # Set flags from config
     case "$CHANNEL" in
         discord) HAS_DISCORD=true ;;
         whatsapp) HAS_WHATSAPP=true ;;
@@ -119,16 +87,25 @@ start_daemon() {
             ;;
     esac
 
-    # Validate: Discord needs a token in .env
+    # Validate Discord token if Discord is enabled
+    if [ "$HAS_DISCORD" = true ] && [ -z "$DISCORD_TOKEN" ]; then
+        echo -e "${RED}Discord is configured but bot token is missing${NC}"
+        echo "Run './tinyclaw.sh setup' to reconfigure"
+        return 1
+    fi
+
+    # Write Discord token to .env for the Node.js client
     if [ "$HAS_DISCORD" = true ]; then
-        DISCORD_TOKEN=""
         if [ -f "$SCRIPT_DIR/.env" ]; then
-            DISCORD_TOKEN=$(grep -s '^DISCORD_BOT_TOKEN=' "$SCRIPT_DIR/.env" | cut -d'=' -f2)
-        fi
-        if [ -z "$DISCORD_TOKEN" ] || [ "$DISCORD_TOKEN" = "your_token_here" ]; then
-            echo -e "${RED}Discord is configured but DISCORD_BOT_TOKEN is missing from .env${NC}"
-            echo "  Add your bot token to .env and try again"
-            return 1
+            # Update existing .env
+            if grep -q "^DISCORD_BOT_TOKEN=" "$SCRIPT_DIR/.env"; then
+                sed -i.bak "s/^DISCORD_BOT_TOKEN=.*/DISCORD_BOT_TOKEN=$DISCORD_TOKEN/" "$SCRIPT_DIR/.env"
+            else
+                echo "DISCORD_BOT_TOKEN=$DISCORD_TOKEN" >> "$SCRIPT_DIR/.env"
+            fi
+        else
+            # Create new .env
+            echo "DISCORD_BOT_TOKEN=$DISCORD_TOKEN" > "$SCRIPT_DIR/.env"
         fi
     fi
 
@@ -302,42 +279,11 @@ start_daemon() {
         fi
     fi
 
-    # Dynamic layout display
-    echo ""
-    echo -e "${BLUE}Tmux Session Layout:${NC}"
-    if [ "$HAS_WHATSAPP" = true ] && [ "$HAS_DISCORD" = true ]; then
-        echo "  ┌──────────┬──────────┬──────────┐"
-        echo "  │ WhatsApp │ Discord  │  Queue   │"
-        echo "  ├──────────┴──────────┼──────────┤"
-        echo "  │     Heartbeat       │   Logs   │"
-        echo "  └─────────────────────┴──────────┘"
-    elif [ "$HAS_DISCORD" = true ]; then
-        echo "  ┌──────────┬──────────┐"
-        echo "  │ Discord  │  Queue   │"
-        echo "  ├──────────┼──────────┤"
-        echo "  │Heartbeat │   Logs   │"
-        echo "  └──────────┴──────────┘"
-    else
-        echo "  ┌──────────┬──────────┐"
-        echo "  │ WhatsApp │  Queue   │"
-        echo "  ├──────────┼──────────┤"
-        echo "  │Heartbeat │   Logs   │"
-        echo "  └──────────┴──────────┘"
-    fi
     echo ""
     echo -e "${GREEN}Commands:${NC}"
     echo "  Status:  ./tinyclaw.sh status"
     echo "  Logs:    ./tinyclaw.sh logs [whatsapp|discord|queue]"
     echo "  Attach:  tmux attach -t $TMUX_SESSION"
-    echo "  Stop:    ./tinyclaw.sh stop"
-    echo ""
-    if [ "$HAS_WHATSAPP" = true ] && [ "$HAS_DISCORD" = true ]; then
-        echo -e "${YELLOW}Send a WhatsApp or Discord DM to test!${NC}"
-    elif [ "$HAS_DISCORD" = true ]; then
-        echo -e "${YELLOW}Send a Discord DM to test!${NC}"
-    else
-        echo -e "${YELLOW}Send a WhatsApp message to test!${NC}"
-    fi
     echo ""
 
     log "Daemon started with $PANE_COUNT panes (discord=$HAS_DISCORD, whatsapp=$HAS_WHATSAPP)"
@@ -504,55 +450,7 @@ case "${1:-}" in
         tmux attach -t "$TMUX_SESSION"
         ;;
     setup)
-        CHANNEL_CONFIG="$SCRIPT_DIR/.tinyclaw/channel"
-        MODEL_CONFIG="$SCRIPT_DIR/.tinyclaw/model"
-
-        echo ""
-        echo "Which messaging channel do you want to use?"
-        echo ""
-        echo "  1) Discord"
-        echo "  2) WhatsApp"
-        echo "  3) Both"
-        echo ""
-        if [ -f "$CHANNEL_CONFIG" ]; then
-            echo -e "  ${YELLOW}Current: $(cat "$CHANNEL_CONFIG")${NC}"
-            echo ""
-        fi
-        read -rp "Choose [1-3]: " CHANNEL_CHOICE
-        case "$CHANNEL_CHOICE" in
-            1) echo "discord" > "$CHANNEL_CONFIG" ;;
-            2) echo "whatsapp" > "$CHANNEL_CONFIG" ;;
-            3) echo "both" > "$CHANNEL_CONFIG" ;;
-            *)
-                echo -e "${RED}Invalid choice${NC}"
-                exit 1
-                ;;
-        esac
-        echo -e "${GREEN}✓ Channel: $(cat "$CHANNEL_CONFIG")${NC}"
-
-        echo ""
-        echo "Which Claude model?"
-        echo ""
-        echo "  1) Sonnet  (fast, recommended)"
-        echo "  2) Opus    (smartest)"
-        echo ""
-        if [ -f "$MODEL_CONFIG" ]; then
-            echo -e "  ${YELLOW}Current: $(cat "$MODEL_CONFIG")${NC}"
-            echo ""
-        fi
-        read -rp "Choose [1-2]: " MODEL_CHOICE
-        case "$MODEL_CHOICE" in
-            1) echo "sonnet" > "$MODEL_CONFIG" ;;
-            2) echo "opus" > "$MODEL_CONFIG" ;;
-            *)
-                echo -e "${RED}Invalid choice${NC}"
-                exit 1
-                ;;
-        esac
-        echo -e "${GREEN}✓ Model: $(cat "$MODEL_CONFIG")${NC}"
-
-        echo ""
-        echo "Restart to apply: ./tinyclaw.sh restart"
+        "$SCRIPT_DIR/setup-wizard.sh"
         ;;
     *)
         echo -e "${BLUE}TinyClaw Simple - Claude Code + WhatsApp + Discord${NC}"
