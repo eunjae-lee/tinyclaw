@@ -25,9 +25,8 @@ const CLAUDE_MODEL_IDS: Record<string, string> = {
 };
 
 const OPENAI_MODEL_IDS: Record<string, string> = {
-    'gpt-4': 'gpt-4',
-    'gpt-4-turbo': 'gpt-4-turbo-preview',
-    'gpt-3.5-turbo': 'gpt-3.5-turbo',
+    'gpt-5.2': 'gpt-5.2',
+    'gpt-5.3-codex': 'gpt-5.3-codex',
 };
 
 interface Settings {
@@ -98,7 +97,7 @@ async function callOpenAI(message: string): Promise<string> {
     }
 
     const openai = new OpenAI({ apiKey: openaiApiKey });
-    const model = settings?.models?.openai?.model || 'gpt-4';
+    const model = settings?.models?.openai?.model || 'gpt-5.3-codex';
 
     // Use predefined mapping if available, otherwise use the model name as-is
     const modelId = OPENAI_MODEL_IDS[model] || model;

@@ -4,8 +4,9 @@ Minimal multi-channel AI assistant with Discord, WhatsApp, and Telegram integrat
 
 ## 🎯 What is TinyClaw?
 
-TinyClaw is a lightweight wrapper around [Claude Code](https://claude.com/claude-code) that:
+TinyClaw is a lightweight multi-provider AI assistant that:
 
+- ✅ Supports **Anthropic Claude** and **OpenAI GPT** models
 - ✅ Connects Discord, WhatsApp, and Telegram
 - ✅ Processes messages sequentially (no race conditions)
 - ✅ Maintains conversation context
@@ -32,7 +33,8 @@ TinyClaw is a lightweight wrapper around [Claude Code](https://claude.com/claude
 │  Client         │  │   │  Processor   │
 └─────────────────┘  │   └──────────────┘
                      │        ↓
-                     │   claude -c -p
+                     │   AI Provider
+                     │   (Claude or OpenAI)
                      │        ↓
                      │   Queue (outgoing/)
                      │        ↓
@@ -93,6 +95,15 @@ Enter your Telegram bot token:
 Token: YOUR_TELEGRAM_BOT_TOKEN_HERE
 
 ✓ Telegram token saved
+
+Which AI provider?
+
+  1) Anthropic (Claude)  (recommended)
+  2) OpenAI (Codex/GPT)
+
+Choose [1-2]: 1
+
+✓ Provider: anthropic
 
 Which Claude model?
 
@@ -180,10 +191,17 @@ You'll get a response! 🤖
 ./tinyclaw.sh channels reset discord   # Shows Discord reset instructions
 ./tinyclaw.sh channels reset telegram  # Shows Telegram reset instructions
 
-# Switch Claude model
-./tinyclaw.sh model           # Show current model
-./tinyclaw.sh model sonnet    # Switch to Sonnet (fast)
-./tinyclaw.sh model opus      # Switch to Opus (smartest)
+# Switch AI provider
+./tinyclaw.sh provider              # Show current provider
+./tinyclaw.sh provider anthropic    # Switch to Anthropic (Claude)
+./tinyclaw.sh provider openai       # Switch to OpenAI
+
+# Switch AI model
+./tinyclaw.sh model                 # Show current model
+./tinyclaw.sh model sonnet          # Switch to Claude Sonnet (fast)
+./tinyclaw.sh model opus            # Switch to Claude Opus (smartest)
+./tinyclaw.sh model gpt-5.3-codex   # Switch to OpenAI GPT-5.3 Codex
+./tinyclaw.sh model gpt-5.2         # Switch to OpenAI GPT-5.2
 
 # View logs
 ./tinyclaw.sh logs whatsapp   # WhatsApp activity
@@ -239,8 +257,10 @@ You'll get a response! 🤖
 
 - Polls incoming queue
 - Processes **ONE message at a time**
-- Calls `claude -c -p`
-- Waits indefinitely for Claude to finish (supports long-running agent tasks)
+- Routes to configured AI provider:
+  - **Anthropic:** Calls `claude -c -p` (supports long-running agent tasks)
+  - **OpenAI:** Calls OpenAI API with configured model
+- Waits indefinitely for response
 - Writes responses to outgoing queue
 
 ### 6. heartbeat-cron.sh
@@ -265,7 +285,7 @@ Client writes to:
        ↓
 queue-processor.ts picks it up
        ↓
-Runs: claude -c -p "message"
+Routes to AI provider (Claude or OpenAI)
        ↓
 Writes to:
   .tinyclaw/queue/outgoing/{channel}_<id>.json
@@ -327,13 +347,54 @@ Next message starts fresh (no conversation history).
 
 All configuration is stored in `.tinyclaw/settings.json`:
 
+**Anthropic (Claude) example:**
 ```json
 {
-  "channels": "discord,whatsapp,telegram",
-  "model": "sonnet",
-  "discord_bot_token": "YOUR_DISCORD_TOKEN_HERE",
-  "telegram_bot_token": "YOUR_TELEGRAM_TOKEN_HERE",
-  "heartbeat_interval": 3600
+  "channels": {
+    "enabled": ["telegram", "discord"],
+    "discord": {
+      "bot_token": "YOUR_DISCORD_TOKEN_HERE"
+    },
+    "telegram": {
+      "bot_token": "YOUR_TELEGRAM_TOKEN_HERE"
+    },
+    "whatsapp": {}
+  },
+  "models": {
+    "provider": "anthropic",
+    "anthropic": {
+      "model": "sonnet"
+    }
+  },
+  "monitoring": {
+    "heartbeat_interval": 3600
+  }
+}
+```
+
+**OpenAI example:**
+```json
+{
+  "channels": {
+    "enabled": ["telegram", "discord"],
+    "discord": {
+      "bot_token": "YOUR_DISCORD_TOKEN_HERE"
+    },
+    "telegram": {
+      "bot_token": "YOUR_TELEGRAM_TOKEN_HERE"
+    },
+    "whatsapp": {}
+  },
+  "models": {
+    "provider": "openai",
+    "openai": {
+      "model": "gpt-5.3-codex",
+      "api_key": "YOUR_OPENAI_API_KEY"
+    }
+  },
+  "monitoring": {
+    "heartbeat_interval": 3600
+  }
 }
 ```
 
@@ -431,13 +492,23 @@ fs.writeFileSync(
 
 Queue processor handles all channels automatically!
 
-### ✅ Clean Responses
+### ✅ Multiple AI Providers
 
-Uses `claude -c -p`:
+**Anthropic Claude:**
+- Sonnet (fast, recommended)
+- Opus (smartest)
+- Uses `claude -c -p` for conversation continuity
 
-- `-c` = continue conversation
-- `-p` = print mode (clean output)
-- No tmux capture needed
+**OpenAI:**
+- GPT-5.3 Codex (recommended)
+- GPT-5.2
+- Uses OpenAI API for responses
+
+Switch providers anytime:
+```bash
+./tinyclaw.sh provider openai
+./tinyclaw.sh model gpt-5.3-codex
+```
 
 ### ✅ Persistent Sessions
 
