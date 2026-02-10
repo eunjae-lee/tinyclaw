@@ -73,15 +73,9 @@ echo ""
 # Determine installation directory
 echo -e "${BLUE}[2/6] Choosing installation directory...${NC}"
 
-if [ -w "/opt" ] || [ "$EUID" -eq 0 ]; then
-    INSTALL_DIR="/opt/tinyclaw"
-    INSTALL_TYPE="system"
-    echo -e "Installing to: ${GREEN}$INSTALL_DIR${NC} (system-wide)"
-else
-    INSTALL_DIR="$HOME/.tinyclaw-install"
-    INSTALL_TYPE="user"
-    echo -e "Installing to: ${GREEN}$INSTALL_DIR${NC} (user)"
-fi
+INSTALL_DIR="$HOME/.tinyclaw"
+INSTALL_TYPE="user"
+echo -e "Installing to: ${GREEN}$INSTALL_DIR${NC}"
 echo ""
 
 # Check if already installed
@@ -179,17 +173,7 @@ chmod +x setup-wizard.sh
 chmod +x heartbeat-cron.sh
 
 # Run the install script
-if [ "$INSTALL_TYPE" = "system" ] && [ "$EUID" -ne 0 ]; then
-    echo "Creating symlink (may require sudo)..."
-    sudo "$INSTALL_DIR/install.sh" || {
-        echo -e "${RED}✗ Failed to create system-wide symlink${NC}"
-        echo "You can manually create it with:"
-        echo "  sudo ln -s $INSTALL_DIR/bin/tinyclaw /usr/local/bin/tinyclaw"
-        exit 1
-    }
-else
-    "$INSTALL_DIR/install.sh"
-fi
+"$INSTALL_DIR/install.sh"
 
 echo ""
 echo -e "${GREEN}╔════════════════════════════════════════╗${NC}"

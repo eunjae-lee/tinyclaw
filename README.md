@@ -62,7 +62,7 @@ curl -fsSL https://raw.githubusercontent.com/jlia0/tinyclaw/main/scripts/remote-
 
 This automatically:
 - Downloads pre-built bundle (no npm install needed)
-- Installs to `/opt/tinyclaw` or `~/.tinyclaw-install`
+- Installs to `~/.tinyclaw`
 - Creates global `tinyclaw` command
 - Falls back to source install if bundle unavailable
 
