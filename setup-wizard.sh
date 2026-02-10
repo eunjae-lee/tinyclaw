@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # TinyClaw Setup Wizard
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

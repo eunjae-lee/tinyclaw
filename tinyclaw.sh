@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # TinyClaw - Main daemon using tmux + claude -c -p + messaging channels
 #
 # To add a new channel:
@@ -6,6 +6,25 @@
 #   2. Add the channel ID to ALL_CHANNELS below
 #   3. Fill in the CHANNEL_* registry arrays
 #   4. Run setup wizard to enable it
+
+# Check bash version (need 4.0+ for associative arrays)
+if [ "${BASH_VERSINFO[0]}" -lt 4 ]; then
+    echo "Error: This script requires bash 4.0 or higher (you have ${BASH_VERSION})"
+    echo ""
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        echo "macOS ships with bash 3.2. Install a newer version:"
+        echo "  brew install bash"
+        echo ""
+        echo "Then either:"
+        echo "  1. Run with: /opt/homebrew/bin/bash $0"
+        echo "  2. Add to your PATH: export PATH=\"/opt/homebrew/bin:\$PATH\""
+    else
+        echo "Install bash 4.0+ using your package manager:"
+        echo "  Ubuntu/Debian: sudo apt-get install bash"
+        echo "  CentOS/RHEL: sudo yum install bash"
+    fi
+    exit 1
+fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TMUX_SESSION="tinyclaw"
@@ -390,12 +409,14 @@ status_daemon() {
         echo -e "Heartbeat:       ${RED}Not Running${NC}"
     fi
 
-    # Recent activity per channel
+    # Recent activity per channel (only show if log file exists)
     for ch in "${ALL_CHANNELS[@]}"; do
-        echo ""
-        echo "Recent ${CHANNEL_DISPLAY[$ch]} Activity:"
-        printf '%0.s─' {1..24}; echo ""
-        tail -n 5 "$LOG_DIR/${ch}.log" 2>/dev/null || echo "  No ${CHANNEL_DISPLAY[$ch]} activity yet"
+        if [ -f "$LOG_DIR/${ch}.log" ]; then
+            echo ""
+            echo "Recent ${CHANNEL_DISPLAY[$ch]} Activity:"
+            printf '%0.s─' {1..24}; echo ""
+            tail -n 5 "$LOG_DIR/${ch}.log"
+        fi
     done
 
     echo ""
