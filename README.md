@@ -82,7 +82,7 @@ tar -xzf tinyclaw-bundle.tar.gz
 cd tinyclaw
 
 # Install CLI globally
-./install/install.sh
+./scripts/install.sh
 ```
 
 #### Option 3: From Source
@@ -98,7 +98,7 @@ cd tinyclaw
 npm install
 
 # Install CLI globally
-./install/install.sh
+./scripts/install.sh
 ```
 
 #### Option 4: Direct Script (No CLI Install)
@@ -279,14 +279,14 @@ To remove the global CLI installation:
 
 ```bash
 cd /path/to/tinyclaw
-./install/uninstall.sh
+./scripts/uninstall.sh
 ```
 
 This only removes the CLI symlink. The TinyClaw installation directory remains intact.
 
 ## 🔧 Components
 
-### 1. install/setup-wizard.sh
+### 1. scripts/setup-wizard.sh
 
 - Interactive setup on first run
 - Configures channels (Discord/WhatsApp/Telegram)
@@ -389,12 +389,14 @@ tinyclaw/
 │   ├── telegram-client.ts   # Telegram I/O
 │   └── queue-processor.ts   # Message processing
 ├── dist/                 # TypeScript build output
-├── install/              # Installation scripts
-│   ├── setup-wizard.sh   # Interactive setup
-│   ├── install.sh        # CLI installation
-│   └── uninstall.sh      # CLI uninstallation
 ├── lib/                  # Runtime helper scripts
 │   └── heartbeat-cron.sh # Health checks
+├── scripts/              # Installation & build scripts
+│   ├── setup-wizard.sh   # Interactive setup
+│   ├── install.sh        # CLI installation
+│   ├── uninstall.sh      # CLI uninstallation
+│   ├── bundle.sh         # Create release bundle
+│   └── remote-install.sh # Remote installation
 └── tinyclaw.sh           # Main script
 ```
 
@@ -766,7 +768,7 @@ cd test-install
 tinyclaw status
 ```
 
-The bundle structure maintains the organized directory layout with `install/` and `lib/` directories.
+The bundle structure maintains the organized directory layout with `scripts/` and `lib/` directories.
 
 ## 🎯 Use Cases
 
