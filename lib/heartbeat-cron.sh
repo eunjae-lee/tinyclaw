@@ -3,9 +3,10 @@
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-LOG_FILE="$PROJECT_ROOT/.tinyclaw/logs/heartbeat.log"
-QUEUE_INCOMING="$PROJECT_ROOT/.tinyclaw/queue/incoming"
-QUEUE_OUTGOING="$PROJECT_ROOT/.tinyclaw/queue/outgoing"
+TINYCLAW_HOME="$HOME/.tinyclaw"
+LOG_FILE="$TINYCLAW_HOME/logs/heartbeat.log"
+QUEUE_INCOMING="$TINYCLAW_HOME/queue/incoming"
+QUEUE_OUTGOING="$TINYCLAW_HOME/queue/outgoing"
 SETTINGS_FILE="$PROJECT_ROOT/.tinyclaw/settings.json"
 
 # Read interval from settings.json, default to 3600

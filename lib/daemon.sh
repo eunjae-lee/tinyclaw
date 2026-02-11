@@ -90,9 +90,9 @@ start_daemon() {
     echo ""
 
     # Build log tail command
-    local log_tail_cmd="tail -f .tinyclaw/logs/queue.log"
+    local log_tail_cmd="tail -f $LOG_DIR/queue.log"
     for ch in "${ACTIVE_CHANNELS[@]}"; do
-        log_tail_cmd="$log_tail_cmd .tinyclaw/logs/${ch}.log"
+        log_tail_cmd="$log_tail_cmd $LOG_DIR/${ch}.log"
     done
 
     # --- Build tmux session dynamically ---

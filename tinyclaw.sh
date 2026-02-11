@@ -14,7 +14,8 @@ else
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 fi
 TMUX_SESSION="tinyclaw"
-LOG_DIR="$SCRIPT_DIR/.tinyclaw/logs"
+# Centralize all logs to ~/.tinyclaw/logs
+LOG_DIR="$HOME/.tinyclaw/logs"
 SETTINGS_FILE="$SCRIPT_DIR/.tinyclaw/settings.json"
 
 mkdir -p "$LOG_DIR"

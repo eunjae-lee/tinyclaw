@@ -11,9 +11,10 @@ import fs from 'fs';
 import path from 'path';
 
 const SCRIPT_DIR = path.resolve(__dirname, '..');
-const QUEUE_INCOMING = path.join(SCRIPT_DIR, '.tinyclaw/queue/incoming');
-const QUEUE_OUTGOING = path.join(SCRIPT_DIR, '.tinyclaw/queue/outgoing');
-const LOG_FILE = path.join(SCRIPT_DIR, '.tinyclaw/logs/whatsapp.log');
+const TINYCLAW_HOME = path.join(require('os').homedir(), '.tinyclaw');
+const QUEUE_INCOMING = path.join(TINYCLAW_HOME, 'queue/incoming');
+const QUEUE_OUTGOING = path.join(TINYCLAW_HOME, 'queue/outgoing');
+const LOG_FILE = path.join(TINYCLAW_HOME, 'logs/whatsapp.log');
 const SESSION_DIR = path.join(SCRIPT_DIR, '.tinyclaw/whatsapp-session');
 const SETTINGS_FILE = path.join(SCRIPT_DIR, '.tinyclaw/settings.json');
 const FILES_DIR = path.join(SCRIPT_DIR, '.tinyclaw/files');

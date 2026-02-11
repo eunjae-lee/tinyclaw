@@ -189,10 +189,12 @@ read -rp "Set up additional teams? [y/N]: " SETUP_TEAMS
 TEAMS_JSON=""
 # Always create the default team
 DEFAULT_TEAM_DIR="$WORKSPACE_PATH/$DEFAULT_TEAM_NAME"
-# Capitalize first letter of team name
-DEFAULT_TEAM_DISPLAY=$(echo "$DEFAULT_TEAM_NAME" | sed 's/./\U&/')
+# Capitalize first letter of team name (proper bash method)
+DEFAULT_TEAM_DISPLAY="$(tr '[:lower:]' '[:upper:]' <<< "${DEFAULT_TEAM_NAME:0:1}")${DEFAULT_TEAM_NAME:1}"
 TEAMS_JSON='"teams": {'
 TEAMS_JSON="$TEAMS_JSON \"$DEFAULT_TEAM_NAME\": { \"name\": \"$DEFAULT_TEAM_DISPLAY\", \"provider\": \"$PROVIDER\", \"model\": \"$MODEL\", \"working_directory\": \"$DEFAULT_TEAM_DIR\" }"
+
+ADDITIONAL_TEAMS=()  # Track additional team IDs for directory creation
 
 if [[ "$SETUP_TEAMS" =~ ^[yY] ]]; then
 
@@ -248,6 +250,9 @@ if [[ "$SETUP_TEAMS" =~ ^[yY] ]]; then
             TEAMS_JSON="$TEAMS_JSON, \"system_prompt\": \"$NEW_SYSPROMPT\""
         fi
         TEAMS_JSON="$TEAMS_JSON }"
+
+        # Track this team for directory creation later
+        ADDITIONAL_TEAMS+=("$NEW_TEAM_ID")
 
         echo -e "  ${GREEN}✓ Team '${NEW_TEAM_ID}' added${NC}"
     done
@@ -314,6 +319,7 @@ echo -e "${GREEN}✓ Created workspace: $WORKSPACE_PATH${NC}"
 # Create ~/.tinyclaw with templates
 TINYCLAW_HOME="$HOME/.tinyclaw"
 mkdir -p "$TINYCLAW_HOME"
+mkdir -p "$TINYCLAW_HOME/logs"
 if [ -d "$PROJECT_ROOT/.claude" ]; then
     cp -r "$PROJECT_ROOT/.claude" "$TINYCLAW_HOME/"
 fi
@@ -324,6 +330,35 @@ if [ -f "$PROJECT_ROOT/AGENTS.md" ]; then
     cp "$PROJECT_ROOT/AGENTS.md" "$TINYCLAW_HOME/"
 fi
 echo -e "${GREEN}✓ Created ~/.tinyclaw with templates${NC}"
+
+# Create default team directory with config files
+mkdir -p "$DEFAULT_TEAM_DIR"
+if [ -d "$TINYCLAW_HOME/.claude" ]; then
+    cp -r "$TINYCLAW_HOME/.claude" "$DEFAULT_TEAM_DIR/"
+fi
+if [ -f "$TINYCLAW_HOME/heartbeat.md" ]; then
+    cp "$TINYCLAW_HOME/heartbeat.md" "$DEFAULT_TEAM_DIR/"
+fi
+if [ -f "$TINYCLAW_HOME/AGENTS.md" ]; then
+    cp "$TINYCLAW_HOME/AGENTS.md" "$DEFAULT_TEAM_DIR/"
+fi
+echo -e "${GREEN}✓ Created default team directory: $DEFAULT_TEAM_DIR${NC}"
+
+# Create directories for additional teams
+for team_id in "${ADDITIONAL_TEAMS[@]}"; do
+    TEAM_DIR="$WORKSPACE_PATH/$team_id"
+    mkdir -p "$TEAM_DIR"
+    if [ -d "$TINYCLAW_HOME/.claude" ]; then
+        cp -r "$TINYCLAW_HOME/.claude" "$TEAM_DIR/"
+    fi
+    if [ -f "$TINYCLAW_HOME/heartbeat.md" ]; then
+        cp "$TINYCLAW_HOME/heartbeat.md" "$TEAM_DIR/"
+    fi
+    if [ -f "$TINYCLAW_HOME/AGENTS.md" ]; then
+        cp "$TINYCLAW_HOME/AGENTS.md" "$TEAM_DIR/"
+    fi
+    echo -e "${GREEN}✓ Created team directory: $TEAM_DIR${NC}"
+done
 
 echo -e "${GREEN}✓ Configuration saved to .tinyclaw/settings.json${NC}"
 echo ""
