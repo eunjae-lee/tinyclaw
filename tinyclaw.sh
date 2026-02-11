@@ -587,7 +587,7 @@ case "${1:-}" in
                     fi
 
                     # Switch to Anthropic provider
-                    local tmp_file="$SETTINGS_FILE.tmp"
+                    tmp_file="$SETTINGS_FILE.tmp"
                     if [ -n "$MODEL_ARG" ]; then
                         # Set both provider and model
                         jq ".models.provider = \"anthropic\" | .models.anthropic.model = \"$MODEL_ARG\"" "$SETTINGS_FILE" > "$tmp_file" && mv "$tmp_file" "$SETTINGS_FILE"
@@ -607,7 +607,7 @@ case "${1:-}" in
                     fi
 
                     # Switch to OpenAI provider (using Codex CLI)
-                    local tmp_file="$SETTINGS_FILE.tmp"
+                    tmp_file="$SETTINGS_FILE.tmp"
                     if [ -n "$MODEL_ARG" ]; then
                         # Set both provider and model (supports any model name)
                         jq ".models.provider = \"openai\" | .models.openai.model = \"$MODEL_ARG\"" "$SETTINGS_FILE" > "$tmp_file" && mv "$tmp_file" "$SETTINGS_FILE"
@@ -667,7 +667,7 @@ case "${1:-}" in
                     fi
 
                     # Update model using jq
-                    local tmp_file="$SETTINGS_FILE.tmp"
+                    tmp_file="$SETTINGS_FILE.tmp"
                     jq ".models.anthropic.model = \"$2\"" "$SETTINGS_FILE" > "$tmp_file" && mv "$tmp_file" "$SETTINGS_FILE"
 
                     echo -e "${GREEN}✓ Model switched to: $2${NC}"
@@ -681,7 +681,7 @@ case "${1:-}" in
                     fi
 
                     # Update model using jq
-                    local tmp_file="$SETTINGS_FILE.tmp"
+                    tmp_file="$SETTINGS_FILE.tmp"
                     jq ".models.openai.model = \"$2\"" "$SETTINGS_FILE" > "$tmp_file" && mv "$tmp_file" "$SETTINGS_FILE"
 
                     echo -e "${GREEN}✓ Model switched to: $2${NC}"
