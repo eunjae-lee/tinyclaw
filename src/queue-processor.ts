@@ -210,7 +210,7 @@ async function processMessage(messageFile: string): Promise<void> {
                 if (modelId) {
                     codexArgs.push('--model', modelId);
                 }
-                codexArgs.push('--json', '--full-auto', message);
+                codexArgs.push('--skip-git-repo-check', '--dangerously-bypass-approvals-and-sandbox', '--json', message);
 
                 const codexOutput = await runCommand('codex', codexArgs);
 
@@ -258,7 +258,7 @@ async function processMessage(messageFile: string): Promise<void> {
             }
         } catch (error) {
             log('ERROR', `${provider === 'openai' ? 'Codex' : 'Claude'} error: ${(error as Error).message}`);
-            response = "Sorry, I encountered an error processing your request.";
+            response = "Sorry, I encountered an error processing your request. Please check the queue logs.";
         }
 
         // Clean response
