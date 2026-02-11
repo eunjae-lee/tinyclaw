@@ -74,6 +74,14 @@ start_daemon() {
         fi
     done
 
+    # Check for updates (non-blocking)
+    local update_info
+    update_info=$(check_for_updates 2>/dev/null || true)
+    if [ -n "$update_info" ]; then
+        IFS='|' read -r current latest <<< "$update_info"
+        show_update_notification "$current" "$latest"
+    fi
+
     # Report channels
     echo -e "${BLUE}Channels:${NC}"
     for ch in "${ACTIVE_CHANNELS[@]}"; do
