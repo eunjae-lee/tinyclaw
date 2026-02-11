@@ -79,24 +79,64 @@ for ch in "${ENABLED_CHANNELS[@]}"; do
     fi
 done
 
-# Model selection
-echo "Which Claude model?"
+# Provider selection
+echo "Which AI provider?"
 echo ""
-echo "  1) Sonnet  (fast, recommended)"
-echo "  2) Opus    (smartest)"
+echo "  1) Anthropic (Claude)  (recommended)"
+echo "  2) OpenAI (Codex/GPT)"
 echo ""
-read -rp "Choose [1-2]: " MODEL_CHOICE
+read -rp "Choose [1-2]: " PROVIDER_CHOICE
 
-case "$MODEL_CHOICE" in
-    1) MODEL="sonnet" ;;
-    2) MODEL="opus" ;;
+case "$PROVIDER_CHOICE" in
+    1) PROVIDER="anthropic" ;;
+    2) PROVIDER="openai" ;;
     *)
         echo -e "${RED}Invalid choice${NC}"
         exit 1
         ;;
 esac
-echo -e "${GREEN}✓ Model: $MODEL${NC}"
+echo -e "${GREEN}✓ Provider: $PROVIDER${NC}"
 echo ""
+
+# Model selection based on provider
+if [ "$PROVIDER" = "anthropic" ]; then
+    echo "Which Claude model?"
+    echo ""
+    echo "  1) Sonnet  (fast, recommended)"
+    echo "  2) Opus    (smartest)"
+    echo ""
+    read -rp "Choose [1-2]: " MODEL_CHOICE
+
+    case "$MODEL_CHOICE" in
+        1) MODEL="sonnet" ;;
+        2) MODEL="opus" ;;
+        *)
+            echo -e "${RED}Invalid choice${NC}"
+            exit 1
+            ;;
+    esac
+    echo -e "${GREEN}✓ Model: $MODEL${NC}"
+    echo ""
+else
+    # OpenAI models
+    echo "Which OpenAI model?"
+    echo ""
+    echo "  1) GPT-5.3 Codex  (recommended)"
+    echo "  2) GPT-5.2"
+    echo ""
+    read -rp "Choose [1-2]: " MODEL_CHOICE
+
+    case "$MODEL_CHOICE" in
+        1) MODEL="gpt-5.3-codex" ;;
+        2) MODEL="gpt-5.2" ;;
+        *)
+            echo -e "${RED}Invalid choice${NC}"
+            exit 1
+            ;;
+    esac
+    echo -e "${GREEN}✓ Model: $MODEL${NC}"
+    echo ""
+fi
 
 # Heartbeat interval
 echo "Heartbeat interval (seconds)?"
@@ -127,6 +167,7 @@ DISCORD_TOKEN="${TOKENS[discord]:-}"
 TELEGRAM_TOKEN="${TOKENS[telegram]:-}"
 
 # Write settings.json with layered structure
+if [ "$PROVIDER" = "anthropic" ]; then
 cat > "$SETTINGS_FILE" <<EOF
 {
   "channels": {
@@ -140,6 +181,7 @@ cat > "$SETTINGS_FILE" <<EOF
     "whatsapp": {}
   },
   "models": {
+    "provider": "anthropic",
     "anthropic": {
       "model": "${MODEL}"
     }
@@ -149,6 +191,31 @@ cat > "$SETTINGS_FILE" <<EOF
   }
 }
 EOF
+else
+cat > "$SETTINGS_FILE" <<EOF
+{
+  "channels": {
+    "enabled": ${CHANNELS_JSON},
+    "discord": {
+      "bot_token": "${DISCORD_TOKEN}"
+    },
+    "telegram": {
+      "bot_token": "${TELEGRAM_TOKEN}"
+    },
+    "whatsapp": {}
+  },
+  "models": {
+    "provider": "openai",
+    "openai": {
+      "model": "${MODEL}"
+    }
+  },
+  "monitoring": {
+    "heartbeat_interval": ${HEARTBEAT_INTERVAL}
+  }
+}
+EOF
+fi
 
 echo -e "${GREEN}✓ Configuration saved to .tinyclaw/settings.json${NC}"
 echo ""
