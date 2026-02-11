@@ -260,6 +260,38 @@ const queueData = {
 pre-routed with agent=X    → team: X
 ```
 
+### Easter Egg: Multiple Teams 🥚
+
+If you mention multiple teams in one message:
+
+```
+User: "@coder @writer fix this bug and document it"
+
+Result:
+  → Returns friendly message about upcoming team-to-team collaboration
+  → No AI processing (saves tokens!)
+  → Suggests sending separate messages to each team
+```
+
+**The easter egg message:**
+> 🚀 **Team-to-Team Collaboration - Coming Soon!**
+>
+> You mentioned multiple teams: @coder, @writer
+>
+> Right now, I can only route to one team at a time. But we're working on something cool:
+>
+> ✨ **Multi-Team Coordination** - Teams will be able to collaborate on complex tasks!
+> ✨ **Smart Routing** - Send instructions to multiple teams at once!
+> ✨ **Team Handoffs** - One team can delegate to another!
+>
+> For now, please send separate messages to each team:
+> • `@coder [your message]`
+> • `@writer [your message]`
+>
+> _Stay tuned for updates! 🎉_
+
+This prevents confusion and teases the upcoming feature!
+
 ## Reset System
 
 ### Global Reset

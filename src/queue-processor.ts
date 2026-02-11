@@ -212,10 +212,46 @@ function getAgentResetFlag(agentId: string, workspacePath: string): string {
 
 
 /**
+ * Detect if message mentions multiple teams (easter egg for future feature)
+ */
+function detectMultipleTeams(message: string, agents: Record<string, AgentConfig>): string[] {
+    const mentions = message.match(/@(\S+)/g) || [];
+    const validTeams: string[] = [];
+
+    for (const mention of mentions) {
+        const teamId = mention.slice(1).toLowerCase();
+        if (agents[teamId]) {
+            validTeams.push(teamId);
+        }
+    }
+
+    return validTeams;
+}
+
+/**
  * Parse @agent_id prefix from a message.
  * Returns { agentId, message } where message has the prefix stripped.
+ * Returns { agentId: 'error', message: '...' } if multiple teams detected.
  */
 function parseAgentRouting(rawMessage: string, agents: Record<string, AgentConfig>): { agentId: string; message: string } {
+    // Easter egg: Check for multiple team mentions
+    const mentionedTeams = detectMultipleTeams(rawMessage, agents);
+    if (mentionedTeams.length > 1) {
+        const teamList = mentionedTeams.map(t => `@${t}`).join(', ');
+        return {
+            agentId: 'error',
+            message: `🚀 **Team-to-Team Collaboration - Coming Soon!**\n\n` +
+                     `You mentioned multiple teams: ${teamList}\n\n` +
+                     `Right now, I can only route to one team at a time. But we're working on something cool:\n\n` +
+                     `✨ **Multi-Team Coordination** - Teams will be able to collaborate on complex tasks!\n` +
+                     `✨ **Smart Routing** - Send instructions to multiple teams at once!\n` +
+                     `✨ **Team Handoffs** - One team can delegate to another!\n\n` +
+                     `For now, please send separate messages to each team:\n` +
+                     mentionedTeams.map(t => `• \`@${t} [your message]\``).join('\n') + '\n\n' +
+                     `_Stay tuned for updates! 🎉_`
+        };
+    }
+
     const match = rawMessage.match(/^@(\S+)\s+([\s\S]*)$/);
     if (match) {
         const candidateId = match[1].toLowerCase();
@@ -340,6 +376,27 @@ async function processMessage(messageFile: string): Promise<void> {
             const routing = parseAgentRouting(rawMessage, agents);
             agentId = routing.agentId;
             message = routing.message;
+        }
+
+        // Easter egg: Handle multiple team mentions
+        if (agentId === 'error') {
+            log('INFO', `Multiple teams detected, sending easter egg message`);
+
+            // Send error message directly as response
+            const responseFile = path.join(QUEUE_OUTGOING, path.basename(processingFile));
+            const responseData: ResponseData = {
+                channel,
+                sender,
+                message: message, // Contains the easter egg message
+                originalMessage: rawMessage,
+                timestamp: Date.now(),
+                messageId,
+            };
+
+            fs.writeFileSync(responseFile, JSON.stringify(responseData, null, 2));
+            fs.unlinkSync(processingFile);
+            log('INFO', `✓ Easter egg sent to ${sender}`);
+            return;
         }
 
         // Fall back to default if agent not found
