@@ -2,7 +2,7 @@
 # TinyClaw - Main daemon using tmux + claude -c -p + messaging channels
 #
 # To add a new channel:
-#   1. Create src/<channel>-client.ts
+#   1. Create src/channels/<channel>-client.ts
 #   2. Add the channel ID to ALL_CHANNELS in lib/common.sh
 #   3. Fill in the CHANNEL_* registry arrays in lib/common.sh
 #   4. Run setup wizard to enable it

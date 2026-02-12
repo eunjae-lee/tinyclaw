@@ -172,6 +172,8 @@ agent_add() {
     if [ -d "$SCRIPT_DIR/.claude" ]; then
         cp -r "$SCRIPT_DIR/.claude" "$AGENTS_DIR/$AGENT_ID/"
         echo "  → Copied .claude/ to agent directory"
+    else
+        mkdir -p "$AGENTS_DIR/$AGENT_ID/.claude"
     fi
 
     # Copy heartbeat.md
@@ -184,6 +186,12 @@ agent_add() {
     if [ -f "$SCRIPT_DIR/AGENTS.md" ]; then
         cp "$SCRIPT_DIR/AGENTS.md" "$AGENTS_DIR/$AGENT_ID/"
         echo "  → Copied AGENTS.md to agent directory"
+    fi
+
+    # Copy AGENTS.md content into .claude/CLAUDE.md as well
+    if [ -f "$SCRIPT_DIR/AGENTS.md" ]; then
+        cp "$SCRIPT_DIR/AGENTS.md" "$AGENTS_DIR/$AGENT_ID/.claude/CLAUDE.md"
+        echo "  → Copied CLAUDE.md to .claude/ directory"
     fi
 
     echo ""

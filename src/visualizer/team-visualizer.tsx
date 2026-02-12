@@ -354,7 +354,6 @@ function App({ filterTeamId }: { filterTeamId: string | null }) {
                 const aid = String(event.agentId);
                 setAgentStates(prev => {
                     const updated = { ...prev };
-                    // Set all other agents in this context to waiting
                     for (const key of Object.keys(updated)) {
                         if (key !== aid && updated[key].status === 'active') {
                             updated[key] = { ...updated[key], status: 'waiting' as AgentStatus };
@@ -365,7 +364,6 @@ function App({ filterTeamId }: { filterTeamId: string | null }) {
                     }
                     return updated;
                 });
-                addLog('\u25B6', `Step ${event.step}: @${aid} processing`, 'cyan');
                 break;
             }
 
@@ -375,7 +373,8 @@ function App({ filterTeamId }: { filterTeamId: string | null }) {
                     if (!prev[aid]) return prev;
                     return { ...prev, [aid]: { ...prev[aid], status: 'done' as AgentStatus, responseLength: event.responseLength as number } };
                 });
-                addLog('\u2713', `Step ${event.step}: @${aid} done (${event.responseLength} chars)`, 'green');
+                const text = event.responseText ? String(event.responseText) : `(${event.responseLength} chars)`;
+                addLog('\u{1F4AC}', `@${aid}: ${text}`, 'white');
                 break;
             }
 
@@ -390,14 +389,13 @@ function App({ filterTeamId }: { filterTeamId: string | null }) {
                     }
                     return updated;
                 });
-                addLog('\u21C0', `@${from} \u2192 @${to} (handoff)`, 'yellow');
+                addLog('\u2192', `@${from} \u2192 @${to}`, 'yellow');
                 break;
             }
 
             case 'team_chain_end': {
                 const chainAgents = event.agents as string[];
-                addLog('\u2714', `Chain complete: ${event.totalSteps} step(s) [${chainAgents.map(a => '@' + a).join(' \u2192 ')}]`, 'green');
-                // Mark all agents as done
+                addLog('\u2714', `Chain complete [${chainAgents.map(a => '@' + a).join(' \u2192 ')}]`, 'green');
                 setAgentStates(prev => {
                     const updated = { ...prev };
                     for (const aid of chainAgents) {
@@ -412,7 +410,6 @@ function App({ filterTeamId }: { filterTeamId: string | null }) {
 
             case 'response_ready':
                 setTotalProcessed(prev => prev + 1);
-                addLog('\u2709', `Response to ${event.sender} via @${event.agentId}: ${event.responseText ?? `(${event.responseLength} chars)`}`, 'green');
                 // Reset agent states to idle after a short delay via next tick
                 setTimeout(() => {
                     setAgentStates(prev => {
