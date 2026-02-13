@@ -24,7 +24,7 @@ export function copyDirSync(src: string, dest: string): void {
 
 /**
  * Ensure agent directory exists with template files copied from TINYCLAW_CONFIG_HOME.
- * Creates directory if it doesn't exist and copies .claude/, heartbeat.md, and AGENTS.md.
+ * Creates directory if it doesn't exist and copies .claude/, templates/heartbeat.md, and AGENTS.md.
  */
 export function ensureAgentDirectory(agentDir: string): void {
     if (fs.existsSync(agentDir)) {
@@ -41,7 +41,7 @@ export function ensureAgentDirectory(agentDir: string): void {
     }
 
     // Copy heartbeat.md
-    const sourceHeartbeat = path.join(SCRIPT_DIR, 'heartbeat.md');
+    const sourceHeartbeat = path.join(SCRIPT_DIR, 'templates', 'heartbeat.md');
     const targetHeartbeat = path.join(agentDir, 'heartbeat.md');
     if (fs.existsSync(sourceHeartbeat)) {
         fs.copyFileSync(sourceHeartbeat, targetHeartbeat);

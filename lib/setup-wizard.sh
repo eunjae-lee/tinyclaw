@@ -284,8 +284,8 @@ mkdir -p "$TINYCLAW_CONFIG_HOME/files"
 if [ -d "$PROJECT_ROOT/.claude" ]; then
     cp -r "$PROJECT_ROOT/.claude" "$TINYCLAW_CONFIG_HOME/"
 fi
-if [ -f "$PROJECT_ROOT/heartbeat.md" ]; then
-    cp "$PROJECT_ROOT/heartbeat.md" "$TINYCLAW_CONFIG_HOME/"
+if [ -f "$PROJECT_ROOT/templates/heartbeat.md" ]; then
+    cp "$PROJECT_ROOT/templates/heartbeat.md" "$TINYCLAW_CONFIG_HOME/"
 fi
 if [ -f "$PROJECT_ROOT/AGENTS.md" ]; then
     cp "$PROJECT_ROOT/AGENTS.md" "$TINYCLAW_CONFIG_HOME/"

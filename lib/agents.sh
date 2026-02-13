@@ -179,8 +179,8 @@ agent_add() {
     if [ -f "$TINYCLAW_CONFIG_HOME/heartbeat.md" ]; then
         cp "$TINYCLAW_CONFIG_HOME/heartbeat.md" "$AGENTS_DIR/$AGENT_ID/"
         echo "  → Copied heartbeat.md to agent directory"
-    elif [ -f "$SCRIPT_DIR/heartbeat.md" ]; then
-        cp "$SCRIPT_DIR/heartbeat.md" "$AGENTS_DIR/$AGENT_ID/"
+    elif [ -f "$SCRIPT_DIR/templates/heartbeat.md" ]; then
+        cp "$SCRIPT_DIR/templates/heartbeat.md" "$AGENTS_DIR/$AGENT_ID/"
         echo "  → Copied heartbeat.md to agent directory"
     fi
 

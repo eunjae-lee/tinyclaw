@@ -72,7 +72,7 @@ jobs:
           cp README.md "$BUNDLE_DIR/"
           cp AGENTS.md "$BUNDLE_DIR/"
           cp SOUL.md "$BUNDLE_DIR/"
-          cp heartbeat.md "$BUNDLE_DIR/"
+          cp -r templates "$BUNDLE_DIR/"
           cp .gitignore "$BUNDLE_DIR/"
 
           # Make scripts executable
