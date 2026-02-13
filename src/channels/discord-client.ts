@@ -162,11 +162,11 @@ function getTeamListText(): string {
         }
         let text = '**Available Teams:**\n';
         for (const [id, team] of Object.entries(teams) as [string, any][]) {
-            text += `\n**@${id}** - ${team.name}`;
+            text += `\n**!${id}** - ${team.name}`;
             text += `\n  Agents: ${team.agents.join(', ')}`;
-            text += `\n  Leader: @${team.leader_agent}`;
+            text += `\n  Leader: !${team.leader_agent}`;
         }
-        text += '\n\nUsage: Start your message with `@team_id` to route to a team.';
+        text += '\n\nUsage: Start your message with `!team_id` to route to a team.';
         return text;
     } catch {
         return 'Could not load team configuration.';
@@ -184,13 +184,13 @@ function getAgentListText(): string {
         }
         let text = '**Available Agents:**\n';
         for (const [id, agent] of Object.entries(agents) as [string, any][]) {
-            text += `\n**@${id}** - ${agent.name}`;
+            text += `\n**!${id}** - ${agent.name}`;
             text += `\n  Provider: ${agent.provider}/${agent.model}`;
             text += `\n  Directory: ${agent.working_directory}`;
             if (agent.system_prompt) text += `\n  Has custom system prompt`;
             if (agent.prompt_file) text += `\n  Prompt file: ${agent.prompt_file}`;
         }
-        text += '\n\nUsage: Start your message with `@agent_id` to route to a specific agent.';
+        text += '\n\nUsage: Start your message with `!agent_id` to route to a specific agent.';
         return text;
     } catch {
         return 'Could not load agent configuration.';

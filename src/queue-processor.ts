@@ -4,7 +4,7 @@
  * Processes one message at a time to avoid race conditions
  *
  * Supports multi-agent routing:
- *   - Messages prefixed with @agent_id are routed to that agent
+ *   - Messages prefixed with !agent_id are routed to that agent
  *   - Unrouted messages go to the "default" agent
  *   - Each agent has its own provider, model, working directory, and system prompt
  *   - Conversation isolation via per-agent working directories
@@ -62,7 +62,7 @@ async function processMessage(messageFile: string): Promise<void> {
             agentId = messageData.agent;
             message = rawMessage;
         } else {
-            // Parse @agent or @team prefix
+            // Parse !agent or !team prefix
             const routing = parseAgentRouting(rawMessage, agents, teams);
             agentId = routing.agentId;
             message = routing.message;
@@ -106,7 +106,7 @@ async function processMessage(messageFile: string): Promise<void> {
         emitEvent('agent_routed', { agentId, agentName: agent.name, provider: agent.provider, model: agent.model, isTeamRouted });
 
         // Determine team context
-        // If routed via @team_id, use that team. Otherwise check if agent belongs to a team.
+        // If routed via !team_id, use that team. Otherwise check if agent belongs to a team.
         let teamContext: { teamId: string; team: TeamConfig } | null = null;
         if (isTeamRouted) {
             // Find which team was targeted — the agent was resolved from a team's leader
@@ -394,7 +394,7 @@ function peekAgentId(filePath: string): string {
             return messageData.agent;
         }
 
-        // Parse @agent_id or @team_id prefix
+        // Parse !agent_id or !team_id prefix
         const routing = parseAgentRouting(messageData.message || '', agents, teams);
         return routing.agentId || 'default';
     } catch {

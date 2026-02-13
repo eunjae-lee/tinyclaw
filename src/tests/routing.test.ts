@@ -13,43 +13,43 @@ const teams: Record<string, TeamConfig> = {
 };
 
 describe('parseAgentRouting', () => {
-    it('routes @agent_id messages to the correct agent', () => {
-        const result = parseAgentRouting('@coder fix the bug', agents, teams);
+    it('routes !agent_id messages to the correct agent', () => {
+        const result = parseAgentRouting('!coder fix the bug', agents, teams);
         expect(result.agentId).toBe('coder');
         expect(result.message).toBe('fix the bug');
     });
 
-    it('routes @team_id messages to the team leader', () => {
-        const result = parseAgentRouting('@devteam review this PR', agents, teams);
+    it('routes !team_id messages to the team leader', () => {
+        const result = parseAgentRouting('!devteam review this PR', agents, teams);
         expect(result.agentId).toBe('coder');
         expect(result.message).toBe('review this PR');
         expect(result.isTeam).toBe(true);
     });
 
-    it('defaults to "default" agent when no @ prefix', () => {
+    it('defaults to "default" agent when no ! prefix', () => {
         const result = parseAgentRouting('hello world', agents, teams);
         expect(result.agentId).toBe('default');
         expect(result.message).toBe('hello world');
     });
 
-    it('defaults to "default" agent when @mention is unknown', () => {
-        const result = parseAgentRouting('@unknown do something', agents, teams);
+    it('defaults to "default" agent when !mention is unknown', () => {
+        const result = parseAgentRouting('!unknown do something', agents, teams);
         expect(result.agentId).toBe('default');
-        expect(result.message).toBe('@unknown do something');
+        expect(result.message).toBe('!unknown do something');
     });
 
     it('matches agent by name (case-insensitive)', () => {
-        const result = parseAgentRouting('@Coder fix the bug', agents, teams);
+        const result = parseAgentRouting('!Coder fix the bug', agents, teams);
         expect(result.agentId).toBe('coder');
     });
 
     it('returns error for multiple agents across teams', () => {
-        const result = parseAgentRouting('@coder and @writer collaborate', agents, teams);
+        const result = parseAgentRouting('!coder and !writer collaborate', agents, teams);
         expect(result.agentId).toBe('error');
     });
 
     it('does not error for multiple agents in the same team', () => {
-        const result = parseAgentRouting('@coder and @reviewer collaborate', agents, teams);
+        const result = parseAgentRouting('!coder and !reviewer collaborate', agents, teams);
         // Both are in devteam, so no error
         expect(result.agentId).not.toBe('error');
     });

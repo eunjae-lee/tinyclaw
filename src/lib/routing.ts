@@ -77,11 +77,11 @@ export function getAgentResetFlag(agentId: string, workspacePath: string): strin
 }
 
 /**
- * Detect if message mentions multiple agents (easter egg for future feature).
+ * Detect if message mentions multiple agents with ! prefix (easter egg for future feature).
  * If all mentioned agents are in the same team, returns empty (team chain handles it).
  */
 export function detectMultipleAgents(message: string, agents: Record<string, AgentConfig>, teams: Record<string, TeamConfig>): string[] {
-    const mentions = message.match(/@(\S+)/g) || [];
+    const mentions = message.match(/!(\S+)/g) || [];
     const validAgents: string[] = [];
 
     for (const mention of mentions) {
@@ -104,7 +104,7 @@ export function detectMultipleAgents(message: string, agents: Record<string, Age
 }
 
 /**
- * Parse @agent_id or @team_id prefix from a message.
+ * Parse !agent_id or !team_id prefix from a message.
  * Returns { agentId, message, isTeam } where message has the prefix stripped.
  * Returns { agentId: 'error', message: '...' } if multiple agents detected (across teams).
  */
@@ -116,7 +116,7 @@ export function parseAgentRouting(
     // Easter egg: Check for multiple agent mentions (only for agents NOT in the same team)
     const mentionedAgents = detectMultipleAgents(rawMessage, agents, teams);
     if (mentionedAgents.length > 1) {
-        const agentList = mentionedAgents.map(t => `@${t}`).join(', ');
+        const agentList = mentionedAgents.map(t => `!${t}`).join(', ');
         return {
             agentId: 'error',
             message: `🚀 **Agent-to-Agent Collaboration - Coming Soon!**\n\n` +
@@ -126,12 +126,12 @@ export function parseAgentRouting(
                      `✨ **Smart Routing** - Send instructions to multiple agents at once!\n` +
                      `✨ **Agent Handoffs** - One agent can delegate to another!\n\n` +
                      `For now, please send separate messages to each agent:\n` +
-                     mentionedAgents.map(t => `• \`@${t} [your message]\``).join('\n') + '\n\n' +
+                     mentionedAgents.map(t => `• \`!${t} [your message]\``).join('\n') + '\n\n' +
                      `_Stay tuned for updates! 🎉_`
         };
     }
 
-    const match = rawMessage.match(/^@(\S+)\s+([\s\S]*)$/);
+    const match = rawMessage.match(/^!(\S+)\s+([\s\S]*)$/);
     if (match) {
         const candidateId = match[1].toLowerCase();
 
