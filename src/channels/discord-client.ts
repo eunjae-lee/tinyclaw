@@ -719,6 +719,24 @@ async function checkPendingApprovals(): Promise<void> {
             // Try to post in the same thread/channel as the original message
             const pending = approval.message_id ? pendingMessages.get(approval.message_id) : undefined;
             if (pending) {
+                // If this message needs a thread but doesn't have one yet, create it now
+                if (pending.needsThread) {
+                    try {
+                        const threadName = (pending.message.content || 'conversation').substring(0, 90);
+                        const thread = await pending.message.startThread({
+                            name: threadName,
+                            autoArchiveDuration: 1440,
+                        });
+                        const { defaultAgents: da } = getAllowedChannels();
+                        const parentDefault = da.get(pending.channel.id);
+                        botOwnedThreads.set(thread.id, approval.agent_id ?? parentDefault);
+                        // Update pending so future approvals and the final response use this thread
+                        pending.channel = thread;
+                        pending.needsThread = false;
+                    } catch (threadErr) {
+                        log('WARN', `Failed to create thread for approval, posting in channel: ${(threadErr as Error).message}`);
+                    }
+                }
                 await pending.channel.send({ content, components: [row] });
             } else {
                 // Fallback to DM
