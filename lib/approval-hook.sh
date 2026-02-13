@@ -103,23 +103,41 @@ while [ "$ELAPSED" -lt "$TIMEOUT" ]; do
         # Clean up files
         rm -f "$PENDING_DIR/$REQUEST_ID.json" "$DECISION_FILE"
 
+        # Build permission pattern: for Bash, use "Bash(cmd subcmd:*)" for granularity
+        # e.g. "git status" → Bash(git status:*), "pwd" → Bash(pwd:*)
+        TOOL_PATTERN="$TOOL_NAME"
+        if [ "$TOOL_NAME" = "Bash" ]; then
+            BASH_CMD=$(echo "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null)
+            if [ -n "$BASH_CMD" ]; then
+                WORD1=$(echo "$BASH_CMD" | awk '{print $1}')
+                WORD2=$(echo "$BASH_CMD" | awk '{print $2}')
+                # Only use subcommand for tools that have meaningful subcommands
+                SUBCMD_TOOLS="git gh npm npx docker kubectl cargo make yarn pnpm bun brew pip pip3 conda"
+                if [ -n "$WORD2" ] && [[ "$WORD2" != -* ]] && echo "$SUBCMD_TOOLS" | grep -qw "$WORD1"; then
+                    TOOL_PATTERN="Bash(${WORD1} ${WORD2}:*)"
+                else
+                    TOOL_PATTERN="Bash(${WORD1}:*)"
+                fi
+            fi
+        fi
+
         case "$DECISION" in
             allow)
                 echo '{"permissionDecision":"allow"}'
                 exit 0
                 ;;
             always_allow)
-                # Add tool to this agent's .claude/settings.json permissions.allow
+                # Add tool pattern to this agent's .claude/settings.json permissions.allow
                 AGENT_DIR=$(jq -r --arg id "$AGENT_ID" '.agents[$id].working_directory // empty' "$SETTINGS_FILE" 2>/dev/null)
                 if [ -n "$AGENT_DIR" ] && [ -d "$AGENT_DIR" ]; then
                     CLAUDE_SETTINGS="$AGENT_DIR/.claude/settings.json"
                     mkdir -p "$AGENT_DIR/.claude"
                     if [ -f "$CLAUDE_SETTINGS" ]; then
-                        jq --arg tool "$TOOL_NAME" \
+                        jq --arg tool "$TOOL_PATTERN" \
                             '.permissions.allow = ((.permissions.allow // []) + [$tool] | unique)' \
                             "$CLAUDE_SETTINGS" > "$CLAUDE_SETTINGS.tmp" && mv "$CLAUDE_SETTINGS.tmp" "$CLAUDE_SETTINGS"
                     else
-                        echo "{\"permissions\":{\"allow\":[\"$TOOL_NAME\"]}}" | jq '.' > "$CLAUDE_SETTINGS"
+                        jq -n --arg tool "$TOOL_PATTERN" '{permissions:{allow:[$tool]}}' > "$CLAUDE_SETTINGS"
                     fi
                 fi
 
@@ -127,8 +145,8 @@ while [ "$ELAPSED" -lt "$TIMEOUT" ]; do
                 exit 0
                 ;;
             always_allow_all)
-                # Add tool to TinyClaw's global allowedTools
-                jq --arg tool "$TOOL_NAME" \
+                # Add tool pattern to TinyClaw's global allowedTools
+                jq --arg tool "$TOOL_PATTERN" \
                     '.permissions.allowedTools = ((.permissions.allowedTools // []) + [$tool] | unique)' \
                     "$SETTINGS_FILE" > "$SETTINGS_FILE.tmp" && mv "$SETTINGS_FILE.tmp" "$SETTINGS_FILE"
 
