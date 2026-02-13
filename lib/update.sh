@@ -3,7 +3,7 @@
 
 # GitHub repository info
 GITHUB_REPO="jlia0/tinyclaw"
-UPDATE_CHECK_CACHE="$HOME/.tinyclaw/.update_check"
+UPDATE_CHECK_CACHE="${TINYCLAW_CONFIG_HOME:-$HOME/.tinyclaw/config}/.update_check"
 UPDATE_CHECK_TTL=3600  # Check once per hour
 
 # Get current version

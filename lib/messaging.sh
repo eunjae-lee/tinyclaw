@@ -63,6 +63,6 @@ channels_reset() {
         echo "To reset ${display}, run the setup wizard to update your bot token:"
         echo -e "  ${GREEN}./tinyclaw.sh setup${NC}"
         echo ""
-        echo "Or manually edit .tinyclaw/settings.json to change ${token_key}"
+        echo "Or manually edit $TINYCLAW_CONFIG_HOME/settings.json to change ${token_key}"
     fi
 }

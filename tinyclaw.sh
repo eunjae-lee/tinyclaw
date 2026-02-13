@@ -7,20 +7,19 @@
 #   3. Fill in the CHANNEL_* registry arrays in lib/common.sh
 #   4. Run setup wizard to enable it
 
-# Use TINYCLAW_HOME if set (for CLI wrapper), otherwise detect from script location
-if [ -n "$TINYCLAW_HOME" ]; then
+# Use TINYCLAW_HOME if set, otherwise detect from script location
+if [ -n "${TINYCLAW_HOME:-}" ]; then
     SCRIPT_DIR="$TINYCLAW_HOME"
 else
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 fi
 TMUX_SESSION="tinyclaw"
-# Centralize all logs to ~/.tinyclaw/logs
-LOG_DIR="$HOME/.tinyclaw/logs"
-if [ -f "$SCRIPT_DIR/.tinyclaw/settings.json" ]; then
-    SETTINGS_FILE="$SCRIPT_DIR/.tinyclaw/settings.json"
-else
-    SETTINGS_FILE="$HOME/.tinyclaw/settings.json"
-fi
+
+# Config home
+TINYCLAW_CONFIG_HOME="${TINYCLAW_CONFIG_HOME:-$HOME/.tinyclaw/config}"
+export TINYCLAW_CONFIG_HOME
+SETTINGS_FILE="$TINYCLAW_CONFIG_HOME/settings.json"
+LOG_DIR="$TINYCLAW_CONFIG_HOME/logs"
 
 mkdir -p "$LOG_DIR"
 
@@ -63,7 +62,7 @@ case "${1:-}" in
         ;;
     reset)
         echo -e "${YELLOW}Resetting conversation...${NC}"
-        touch "$SCRIPT_DIR/.tinyclaw/reset_flag"
+        touch "$TINYCLAW_CONFIG_HOME/reset_flag"
         echo -e "${GREEN}✓ Reset flag set${NC}"
         echo ""
         echo "The next message will start a fresh conversation (without -c)."

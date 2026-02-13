@@ -23,7 +23,7 @@ export function copyDirSync(src: string, dest: string): void {
 }
 
 /**
- * Ensure agent directory exists with template files copied from TINYCLAW_HOME.
+ * Ensure agent directory exists with template files copied from TINYCLAW_CONFIG_HOME.
  * Creates directory if it doesn't exist and copies .claude/, heartbeat.md, and AGENTS.md.
  */
 export function ensureAgentDirectory(agentDir: string): void {

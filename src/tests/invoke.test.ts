@@ -337,7 +337,7 @@ describe('invokeAgent - environment variables', () => {
         expect(options.env.TINYCLAW_AGENT_ID).toBe('coder');
     });
 
-    it('passes TINYCLAW_HOME env var to Claude spawn', async () => {
+    it('passes TINYCLAW_CONFIG_HOME env var to Claude spawn', async () => {
         const settings: Settings = {
             permissions: { allowedTools: ['Read'], deniedTools: [] },
             agents: {
@@ -361,8 +361,8 @@ describe('invokeAgent - environment variables', () => {
         await invokeAgent(agent, 'coder', 'hello', '/tmp/workspace', true);
 
         const options = getSpawnOptions();
-        expect(options.env.TINYCLAW_HOME).toBeDefined();
-        expect(typeof options.env.TINYCLAW_HOME).toBe('string');
+        expect(options.env.TINYCLAW_CONFIG_HOME).toBeDefined();
+        expect(typeof options.env.TINYCLAW_CONFIG_HOME).toBe('string');
     });
 
     it('does not pass TINYCLAW_AGENT_ID for codex provider', async () => {

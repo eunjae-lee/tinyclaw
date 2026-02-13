@@ -2,7 +2,7 @@ import { spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { AgentConfig, TeamConfig, Settings } from './types';
-import { SCRIPT_DIR, TINYCLAW_HOME, resolveClaudeModel, resolveCodexModel, getSettings, resolvePermissions } from './config';
+import { SCRIPT_DIR, TINYCLAW_CONFIG_HOME, resolveClaudeModel, resolveCodexModel, getSettings, resolvePermissions } from './config';
 import { log } from './logging';
 import { ensureAgentDirectory, updateAgentTeammates } from './agent-setup';
 
@@ -141,7 +141,7 @@ export async function invokeAgent(
 
         return await runCommand('claude', claudeArgs, workingDir, {
             TINYCLAW_AGENT_ID: agentId,
-            TINYCLAW_HOME,
+            TINYCLAW_CONFIG_HOME,
         });
     }
 }

@@ -3,7 +3,9 @@
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-SETTINGS_FILE="$HOME/.tinyclaw/settings.json"
+TINYCLAW_CONFIG_HOME="${TINYCLAW_CONFIG_HOME:-$HOME/.tinyclaw/config}"
+TINYCLAW_CONFIG_WORKSPACE="${TINYCLAW_CONFIG_WORKSPACE:-$HOME/.tinyclaw/workspace}"
+SETTINGS_FILE="$TINYCLAW_CONFIG_HOME/settings.json"
 
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -116,14 +118,12 @@ echo -e "${GREEN}✓ Heartbeat interval: ${HEARTBEAT_INTERVAL}s${NC}"
 echo ""
 
 # Workspace configuration
-echo "Workspace name (where agent directories will be stored)?"
-echo -e "${YELLOW}(Creates ~/your-workspace-name/)${NC}"
+echo "Workspace path (where agent directories will be stored)?"
+echo -e "${YELLOW}(Default: $TINYCLAW_CONFIG_WORKSPACE)${NC}"
 echo ""
-read -rp "Workspace name [default: tinyclaw-workspace]: " WORKSPACE_INPUT
-WORKSPACE_NAME=${WORKSPACE_INPUT:-tinyclaw-workspace}
-# Clean workspace name
-WORKSPACE_NAME=$(echo "$WORKSPACE_NAME" | tr ' ' '-' | tr -cd 'a-zA-Z0-9_-')
-WORKSPACE_PATH="$HOME/$WORKSPACE_NAME"
+read -rp "Workspace path [default: $TINYCLAW_CONFIG_WORKSPACE]: " WORKSPACE_INPUT
+WORKSPACE_PATH=${WORKSPACE_INPUT:-$TINYCLAW_CONFIG_WORKSPACE}
+WORKSPACE_NAME=$(basename "$WORKSPACE_PATH")
 echo -e "${GREEN}✓ Workspace: $WORKSPACE_PATH${NC}"
 echo ""
 
@@ -260,59 +260,55 @@ if command -v jq &> /dev/null; then
     jq '.' "$SETTINGS_FILE" > "$tmp_file" 2>/dev/null && mv "$tmp_file" "$SETTINGS_FILE"
 fi
 
+# Create config home directories
+mkdir -p "$TINYCLAW_CONFIG_HOME"
+mkdir -p "$TINYCLAW_CONFIG_HOME/logs"
+mkdir -p "$TINYCLAW_CONFIG_HOME/files"
+if [ -d "$PROJECT_ROOT/.claude" ]; then
+    cp -r "$PROJECT_ROOT/.claude" "$TINYCLAW_CONFIG_HOME/"
+fi
+if [ -f "$PROJECT_ROOT/heartbeat.md" ]; then
+    cp "$PROJECT_ROOT/heartbeat.md" "$TINYCLAW_CONFIG_HOME/"
+fi
+if [ -f "$PROJECT_ROOT/AGENTS.md" ]; then
+    cp "$PROJECT_ROOT/AGENTS.md" "$TINYCLAW_CONFIG_HOME/"
+fi
+echo -e "${GREEN}✓ Created config home: $TINYCLAW_CONFIG_HOME${NC}"
+
 # Create workspace directory
 mkdir -p "$WORKSPACE_PATH"
 echo -e "${GREEN}✓ Created workspace: $WORKSPACE_PATH${NC}"
 
-# Create ~/.tinyclaw with templates
-TINYCLAW_HOME="$HOME/.tinyclaw"
-mkdir -p "$TINYCLAW_HOME"
-mkdir -p "$TINYCLAW_HOME/logs"
-if [ -d "$PROJECT_ROOT/.claude" ]; then
-    cp -r "$PROJECT_ROOT/.claude" "$TINYCLAW_HOME/"
-fi
-if [ -f "$PROJECT_ROOT/heartbeat.md" ]; then
-    cp "$PROJECT_ROOT/heartbeat.md" "$TINYCLAW_HOME/"
-fi
-if [ -f "$PROJECT_ROOT/AGENTS.md" ]; then
-    cp "$PROJECT_ROOT/AGENTS.md" "$TINYCLAW_HOME/"
-fi
-echo -e "${GREEN}✓ Created ~/.tinyclaw with templates${NC}"
-
 # Create default agent directory with config files
 mkdir -p "$DEFAULT_AGENT_DIR"
-if [ -d "$TINYCLAW_HOME/.claude" ]; then
-    cp -r "$TINYCLAW_HOME/.claude" "$DEFAULT_AGENT_DIR/"
+if [ -d "$TINYCLAW_CONFIG_HOME/.claude" ]; then
+    cp -r "$TINYCLAW_CONFIG_HOME/.claude" "$DEFAULT_AGENT_DIR/"
 fi
-if [ -f "$TINYCLAW_HOME/heartbeat.md" ]; then
-    cp "$TINYCLAW_HOME/heartbeat.md" "$DEFAULT_AGENT_DIR/"
+if [ -f "$TINYCLAW_CONFIG_HOME/heartbeat.md" ]; then
+    cp "$TINYCLAW_CONFIG_HOME/heartbeat.md" "$DEFAULT_AGENT_DIR/"
 fi
-if [ -f "$TINYCLAW_HOME/AGENTS.md" ]; then
-    cp "$TINYCLAW_HOME/AGENTS.md" "$DEFAULT_AGENT_DIR/"
+if [ -f "$TINYCLAW_CONFIG_HOME/AGENTS.md" ]; then
+    cp "$TINYCLAW_CONFIG_HOME/AGENTS.md" "$DEFAULT_AGENT_DIR/"
 fi
 echo -e "${GREEN}✓ Created default agent directory: $DEFAULT_AGENT_DIR${NC}"
-
-# Create ~/.tinyclaw/files directory for file exchange
-mkdir -p "$TINYCLAW_HOME/files"
-echo -e "${GREEN}✓ Created files directory: $TINYCLAW_HOME/files${NC}"
 
 # Create directories for additional agents
 for agent_id in "${ADDITIONAL_AGENTS[@]}"; do
     AGENT_DIR="$WORKSPACE_PATH/$agent_id"
     mkdir -p "$AGENT_DIR"
-    if [ -d "$TINYCLAW_HOME/.claude" ]; then
-        cp -r "$TINYCLAW_HOME/.claude" "$AGENT_DIR/"
+    if [ -d "$TINYCLAW_CONFIG_HOME/.claude" ]; then
+        cp -r "$TINYCLAW_CONFIG_HOME/.claude" "$AGENT_DIR/"
     fi
-    if [ -f "$TINYCLAW_HOME/heartbeat.md" ]; then
-        cp "$TINYCLAW_HOME/heartbeat.md" "$AGENT_DIR/"
+    if [ -f "$TINYCLAW_CONFIG_HOME/heartbeat.md" ]; then
+        cp "$TINYCLAW_CONFIG_HOME/heartbeat.md" "$AGENT_DIR/"
     fi
-    if [ -f "$TINYCLAW_HOME/AGENTS.md" ]; then
-        cp "$TINYCLAW_HOME/AGENTS.md" "$AGENT_DIR/"
+    if [ -f "$TINYCLAW_CONFIG_HOME/AGENTS.md" ]; then
+        cp "$TINYCLAW_CONFIG_HOME/AGENTS.md" "$AGENT_DIR/"
     fi
     echo -e "${GREEN}✓ Created agent directory: $AGENT_DIR${NC}"
 done
 
-echo -e "${GREEN}✓ Configuration saved to ~/.tinyclaw/settings.json${NC}"
+echo -e "${GREEN}✓ Configuration saved to $SETTINGS_FILE${NC}"
 echo ""
 echo "You can manage agents later with:"
 echo -e "  ${GREEN}./tinyclaw.sh agent list${NC}    - List agents"

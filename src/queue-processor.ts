@@ -16,6 +16,7 @@ import { MessageData, ResponseData, QueueFile, ChainStep, TeamConfig } from './l
 import {
     QUEUE_INCOMING, QUEUE_OUTGOING, QUEUE_PROCESSING,
     LOG_FILE, RESET_FLAG, EVENTS_DIR, CHATS_DIR,
+    TINYCLAW_CONFIG_WORKSPACE,
     getSettings, getAgents, getTeams
 } from './lib/config';
 import { log, emitEvent } from './lib/logging';
@@ -50,7 +51,7 @@ async function processMessage(messageFile: string): Promise<void> {
         const teams = getTeams(settings);
 
         // Get workspace path from settings
-        const workspacePath = settings?.workspace?.path || path.join(require('os').homedir(), 'tinyclaw-workspace');
+        const workspacePath = settings?.workspace?.path || TINYCLAW_CONFIG_WORKSPACE;
 
         // Route message to agent (or team)
         let agentId: string;

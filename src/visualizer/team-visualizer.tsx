@@ -13,18 +13,14 @@ import { render, Box, Text, useApp, useInput, Newline } from 'ink';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import { fileURLToPath } from 'url';
 import { execSync } from 'child_process';
 
 // ─── Paths ──────────────────────────────────────────────────────────────────
-const __filename_ = fileURLToPath(import.meta.url);
-const __dirname_ = path.dirname(__filename_);
-const _localTinyclaw = path.join(__dirname_, '..', '..', '.tinyclaw');
-const TINYCLAW_HOME = fs.existsSync(path.join(_localTinyclaw, 'settings.json'))
-    ? _localTinyclaw
-    : path.join(os.homedir(), '.tinyclaw');
-const EVENTS_DIR = path.join(TINYCLAW_HOME, 'events');
-const SETTINGS_FILE = path.join(TINYCLAW_HOME, 'settings.json');
+const TINYCLAW_CONFIG_HOME = process.env.TINYCLAW_CONFIG_HOME
+    || path.join(os.homedir(), '.tinyclaw', 'config');
+const EVENTS_DIR = path.join(TINYCLAW_CONFIG_HOME, 'events');
+const SETTINGS_FILE = path.join(TINYCLAW_CONFIG_HOME, 'settings.json');
+const QUEUE_INCOMING = path.join(TINYCLAW_CONFIG_HOME, 'queue/incoming');
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -479,10 +475,9 @@ function App({ filterTeamId }: { filterTeamId: string | null }) {
 
     // Poll queue depth
     useEffect(() => {
-        const queueIncoming = path.join(TINYCLAW_HOME, 'queue/incoming');
         const interval = setInterval(() => {
             try {
-                const files = fs.existsSync(queueIncoming) ? fs.readdirSync(queueIncoming).filter(f => f.endsWith('.json')) : [];
+                const files = fs.existsSync(QUEUE_INCOMING) ? fs.readdirSync(QUEUE_INCOMING).filter(f => f.endsWith('.json')) : [];
                 setQueueDepth(files.length);
             } catch {
                 setQueueDepth(0);

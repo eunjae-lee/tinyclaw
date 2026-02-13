@@ -16,18 +16,13 @@ import path from 'path';
 import https from 'https';
 import http from 'http';
 
-const SCRIPT_DIR = path.resolve(__dirname, '..', '..');
-const _localTinyclaw = path.join(SCRIPT_DIR, '.tinyclaw');
-const TINYCLAW_HOME = fs.existsSync(path.join(_localTinyclaw, 'settings.json'))
-    ? _localTinyclaw
-    : path.join(require('os').homedir(), '.tinyclaw');
-const QUEUE_INCOMING = path.join(TINYCLAW_HOME, 'queue/incoming');
-const QUEUE_OUTGOING = path.join(TINYCLAW_HOME, 'queue/outgoing');
-const LOG_FILE = path.join(TINYCLAW_HOME, 'logs/discord.log');
-const SETTINGS_FILE = path.join(TINYCLAW_HOME, 'settings.json');
-const FILES_DIR = path.join(TINYCLAW_HOME, 'files');
-const APPROVALS_PENDING = path.join(TINYCLAW_HOME, 'approvals/pending');
-const APPROVALS_DECISIONS = path.join(TINYCLAW_HOME, 'approvals/decisions');
+import {
+    TINYCLAW_CONFIG_HOME, QUEUE_INCOMING, QUEUE_OUTGOING,
+    SETTINGS_FILE, APPROVALS_PENDING, APPROVALS_DECISIONS, RESET_FLAG
+} from '../lib/config';
+
+const LOG_FILE = path.join(TINYCLAW_CONFIG_HOME, 'logs/discord.log');
+const FILES_DIR = path.join(TINYCLAW_CONFIG_HOME, 'files');
 
 // Ensure directories exist
 [QUEUE_INCOMING, QUEUE_OUTGOING, path.dirname(LOG_FILE), FILES_DIR, APPROVALS_PENDING, APPROVALS_DECISIONS].forEach(dir => {
@@ -180,7 +175,7 @@ function getAgentListText(): string {
         const settings = JSON.parse(settingsData);
         const agents = settings.agents;
         if (!agents || Object.keys(agents).length === 0) {
-            return 'No agents configured. Using default single-agent mode.\n\nConfigure agents in `.tinyclaw/settings.json` or run `tinyclaw agent add`.';
+            return `No agents configured. Using default single-agent mode.\n\nConfigure agents in \`${SETTINGS_FILE}\` or run \`tinyclaw agent add\`.`;
         }
         let text = '**Available Agents:**\n';
         for (const [id, agent] of Object.entries(agents) as [string, any][]) {
@@ -366,8 +361,8 @@ client.on(Events.MessageCreate, async (message: Message) => {
             log('INFO', 'Reset command received');
 
             // Create reset flag
-            const resetFlagPath = path.join(SCRIPT_DIR, '.tinyclaw/reset_flag');
-            fs.writeFileSync(resetFlagPath, 'reset');
+            fs.mkdirSync(path.dirname(RESET_FLAG), { recursive: true });
+            fs.writeFileSync(RESET_FLAG, 'reset');
 
             // Reply immediately
             await message.reply('Conversation reset! Next message will start a fresh conversation.');

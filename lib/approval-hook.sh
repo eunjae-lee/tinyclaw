@@ -16,12 +16,10 @@ if [ -z "$TOOL_NAME" ]; then
     exit 0
 fi
 
-# Resolve TINYCLAW_HOME
-if [ -z "${TINYCLAW_HOME:-}" ]; then
-    TINYCLAW_HOME="$HOME/.tinyclaw"
-fi
+# Resolve TINYCLAW_CONFIG_HOME
+TINYCLAW_CONFIG_HOME="${TINYCLAW_CONFIG_HOME:-$HOME/.tinyclaw/config}"
 
-SETTINGS_FILE="$TINYCLAW_HOME/settings.json"
+SETTINGS_FILE="$TINYCLAW_CONFIG_HOME/settings.json"
 AGENT_ID="${TINYCLAW_AGENT_ID:-default}"
 
 # If no settings file, allow everything
@@ -62,7 +60,7 @@ fi
 
 # Tool is NOT pre-approved — request approval via file-based IPC
 
-APPROVALS_DIR="$TINYCLAW_HOME/approvals"
+APPROVALS_DIR="$TINYCLAW_CONFIG_HOME/approvals"
 PENDING_DIR="$APPROVALS_DIR/pending"
 DECISIONS_DIR="$APPROVALS_DIR/decisions"
 mkdir -p "$PENDING_DIR" "$DECISIONS_DIR"

@@ -3,15 +3,12 @@
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-if [ -f "$PROJECT_ROOT/.tinyclaw/settings.json" ]; then
-    TINYCLAW_HOME="$PROJECT_ROOT/.tinyclaw"
-else
-    TINYCLAW_HOME="$HOME/.tinyclaw"
-fi
-LOG_FILE="$TINYCLAW_HOME/logs/heartbeat.log"
-QUEUE_INCOMING="$TINYCLAW_HOME/queue/incoming"
-QUEUE_OUTGOING="$TINYCLAW_HOME/queue/outgoing"
-SETTINGS_FILE="$PROJECT_ROOT/.tinyclaw/settings.json"
+TINYCLAW_CONFIG_HOME="${TINYCLAW_CONFIG_HOME:-$HOME/.tinyclaw/config}"
+TINYCLAW_CONFIG_WORKSPACE="${TINYCLAW_CONFIG_WORKSPACE:-$HOME/.tinyclaw/workspace}"
+LOG_FILE="$TINYCLAW_CONFIG_HOME/logs/heartbeat.log"
+QUEUE_INCOMING="$TINYCLAW_CONFIG_HOME/queue/incoming"
+QUEUE_OUTGOING="$TINYCLAW_CONFIG_HOME/queue/outgoing"
+SETTINGS_FILE="$TINYCLAW_CONFIG_HOME/settings.json"
 
 # Read interval from settings.json, default to 3600
 if [ -f "$SETTINGS_FILE" ]; then
@@ -43,7 +40,7 @@ while true; do
     # Get workspace path
     WORKSPACE_PATH=$(jq -r '.workspace.path // empty' "$SETTINGS_FILE" 2>/dev/null)
     if [ -z "$WORKSPACE_PATH" ]; then
-        WORKSPACE_PATH="$HOME/tinyclaw-workspace"
+        WORKSPACE_PATH="$TINYCLAW_CONFIG_WORKSPACE"
     fi
 
     # Get all agent IDs

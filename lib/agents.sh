@@ -161,15 +161,14 @@ agent_add() {
         "$SETTINGS_FILE" > "$tmp_file" && mv "$tmp_file" "$SETTINGS_FILE"
 
     # Create agent directory and copy configuration files
-    if [ -f "$SCRIPT_DIR/.tinyclaw/settings.json" ]; then
-        TINYCLAW_HOME="$SCRIPT_DIR/.tinyclaw"
-    else
-        TINYCLAW_HOME="$HOME/.tinyclaw"
-    fi
+    TINYCLAW_CONFIG_HOME="${TINYCLAW_CONFIG_HOME:-$HOME/.tinyclaw/config}"
     mkdir -p "$AGENTS_DIR/$AGENT_ID"
 
     # Copy .claude directory
-    if [ -d "$SCRIPT_DIR/.claude" ]; then
+    if [ -d "$TINYCLAW_CONFIG_HOME/.claude" ]; then
+        cp -r "$TINYCLAW_CONFIG_HOME/.claude" "$AGENTS_DIR/$AGENT_ID/"
+        echo "  → Copied .claude/ to agent directory"
+    elif [ -d "$SCRIPT_DIR/.claude" ]; then
         cp -r "$SCRIPT_DIR/.claude" "$AGENTS_DIR/$AGENT_ID/"
         echo "  → Copied .claude/ to agent directory"
     else
@@ -177,20 +176,26 @@ agent_add() {
     fi
 
     # Copy heartbeat.md
-    if [ -f "$SCRIPT_DIR/heartbeat.md" ]; then
+    if [ -f "$TINYCLAW_CONFIG_HOME/heartbeat.md" ]; then
+        cp "$TINYCLAW_CONFIG_HOME/heartbeat.md" "$AGENTS_DIR/$AGENT_ID/"
+        echo "  → Copied heartbeat.md to agent directory"
+    elif [ -f "$SCRIPT_DIR/heartbeat.md" ]; then
         cp "$SCRIPT_DIR/heartbeat.md" "$AGENTS_DIR/$AGENT_ID/"
         echo "  → Copied heartbeat.md to agent directory"
     fi
 
     # Copy AGENTS.md
-    if [ -f "$SCRIPT_DIR/AGENTS.md" ]; then
+    if [ -f "$TINYCLAW_CONFIG_HOME/AGENTS.md" ]; then
+        cp "$TINYCLAW_CONFIG_HOME/AGENTS.md" "$AGENTS_DIR/$AGENT_ID/"
+        echo "  → Copied AGENTS.md to agent directory"
+    elif [ -f "$SCRIPT_DIR/AGENTS.md" ]; then
         cp "$SCRIPT_DIR/AGENTS.md" "$AGENTS_DIR/$AGENT_ID/"
         echo "  → Copied AGENTS.md to agent directory"
     fi
 
     # Copy AGENTS.md content into .claude/CLAUDE.md as well
-    if [ -f "$SCRIPT_DIR/AGENTS.md" ]; then
-        cp "$SCRIPT_DIR/AGENTS.md" "$AGENTS_DIR/$AGENT_ID/.claude/CLAUDE.md"
+    if [ -f "$AGENTS_DIR/$AGENT_ID/AGENTS.md" ]; then
+        cp "$AGENTS_DIR/$AGENT_ID/AGENTS.md" "$AGENTS_DIR/$AGENT_ID/.claude/CLAUDE.md"
         echo "  → Copied CLAUDE.md to .claude/ directory"
     fi
 

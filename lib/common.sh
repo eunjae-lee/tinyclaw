@@ -76,7 +76,7 @@ load_settings() {
     WORKSPACE_PATH=$(jq -r '.workspace.path // empty' "$SETTINGS_FILE" 2>/dev/null)
     if [ -z "$WORKSPACE_PATH" ]; then
         # Fallback for old configs without workspace
-        WORKSPACE_PATH="$HOME/tinyclaw-workspace"
+        WORKSPACE_PATH="${TINYCLAW_CONFIG_WORKSPACE:-$HOME/.tinyclaw/workspace}"
     fi
 
     # Read enabled channels array
