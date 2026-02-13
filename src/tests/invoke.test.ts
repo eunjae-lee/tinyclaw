@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { AgentConfig, Settings } from '../lib/types';
+import type { AgentConfig } from '../lib/types';
 
 // Mock child_process.spawn to avoid real process execution
 vi.mock('child_process', () => ({
@@ -30,7 +30,6 @@ vi.mock('../lib/config', async (importOriginal) => {
     const actual = await importOriginal<typeof import('../lib/config')>();
     return {
         ...actual,
-        getSettings: vi.fn(),
     };
 });
 
@@ -45,9 +44,7 @@ vi.mock('../lib/logging', () => ({
 
 import { spawn } from 'child_process';
 import { invokeAgent } from '../lib/invoke';
-import { getSettings } from '../lib/config';
 
-const mockedGetSettings = vi.mocked(getSettings);
 const mockedSpawn = vi.mocked(spawn);
 
 describe('invokeAgent - Claude argument construction', () => {
@@ -60,23 +57,7 @@ describe('invokeAgent - Claude argument construction', () => {
         return { command: call[0] as string, args: call[1] as string[] };
     }
 
-    it('passes --allowedTools with comma-separated tools for Claude provider', async () => {
-        const settings: Settings = {
-            permissions: {
-                allowedTools: ['Read', 'Grep', 'Glob', 'Write', 'Edit'],
-                deniedTools: [],
-            },
-            agents: {
-                coder: {
-                    name: 'Coder',
-                    provider: 'anthropic',
-                    model: 'sonnet',
-                    working_directory: '/tmp/coder',
-                },
-            },
-        };
-        mockedGetSettings.mockReturnValue(settings);
-
+    it('does not pass --allowedTools (permissions handled by .claude/settings.json)', async () => {
         const agent: AgentConfig = {
             name: 'Coder',
             provider: 'anthropic',
@@ -88,28 +69,10 @@ describe('invokeAgent - Claude argument construction', () => {
 
         const { command, args } = getSpawnArgs();
         expect(command).toBe('claude');
-        expect(args).toContain('--allowedTools');
-        const toolsIndex = args.indexOf('--allowedTools');
-        expect(args[toolsIndex + 1]).toBe('Read,Grep,Glob,Write,Edit');
+        expect(args).not.toContain('--allowedTools');
     });
 
     it('does not include --dangerously-skip-permissions', async () => {
-        const settings: Settings = {
-            permissions: {
-                allowedTools: ['Read'],
-                deniedTools: [],
-            },
-            agents: {
-                coder: {
-                    name: 'Coder',
-                    provider: 'anthropic',
-                    model: 'sonnet',
-                    working_directory: '/tmp/coder',
-                },
-            },
-        };
-        mockedGetSettings.mockReturnValue(settings);
-
         const agent: AgentConfig = {
             name: 'Coder',
             provider: 'anthropic',
@@ -123,114 +86,7 @@ describe('invokeAgent - Claude argument construction', () => {
         expect(args).not.toContain('--dangerously-skip-permissions');
     });
 
-    it('respects agent-specific permissions over global', async () => {
-        const settings: Settings = {
-            permissions: {
-                allowedTools: ['Read', 'Grep'],
-                deniedTools: [],
-            },
-            agents: {
-                coder: {
-                    name: 'Coder',
-                    provider: 'anthropic',
-                    model: 'sonnet',
-                    working_directory: '/tmp/coder',
-                    permissions: {
-                        allowedTools: ['Read', 'Grep', 'Glob', 'Write', 'Edit', 'Bash'],
-                    },
-                },
-            },
-        };
-        mockedGetSettings.mockReturnValue(settings);
-
-        const agent: AgentConfig = {
-            name: 'Coder',
-            provider: 'anthropic',
-            model: 'sonnet',
-            working_directory: '/tmp/coder',
-            permissions: {
-                allowedTools: ['Read', 'Grep', 'Glob', 'Write', 'Edit', 'Bash'],
-            },
-        };
-
-        await invokeAgent(agent, 'coder', 'hello', '/tmp/workspace', true);
-
-        const { args } = getSpawnArgs();
-        const toolsIndex = args.indexOf('--allowedTools');
-        expect(args[toolsIndex + 1]).toBe('Read,Grep,Glob,Write,Edit,Bash');
-    });
-
-    it('filters denied tools from allowed tools', async () => {
-        const settings: Settings = {
-            permissions: {
-                allowedTools: ['Read', 'Grep', 'Glob', 'Bash'],
-                deniedTools: ['Bash'],
-            },
-            agents: {
-                reader: {
-                    name: 'Reader',
-                    provider: 'anthropic',
-                    model: 'sonnet',
-                    working_directory: '/tmp/reader',
-                },
-            },
-        };
-        mockedGetSettings.mockReturnValue(settings);
-
-        const agent: AgentConfig = {
-            name: 'Reader',
-            provider: 'anthropic',
-            model: 'sonnet',
-            working_directory: '/tmp/reader',
-        };
-
-        await invokeAgent(agent, 'reader', 'hello', '/tmp/workspace', true);
-
-        const { args } = getSpawnArgs();
-        const toolsIndex = args.indexOf('--allowedTools');
-        expect(args[toolsIndex + 1]).toBe('Read,Grep,Glob');
-    });
-
-    it('does not include --allowedTools when no tools configured', async () => {
-        const settings: Settings = {
-            agents: {
-                bare: {
-                    name: 'Bare',
-                    provider: 'anthropic',
-                    model: 'sonnet',
-                    working_directory: '/tmp/bare',
-                },
-            },
-        };
-        mockedGetSettings.mockReturnValue(settings);
-
-        const agent: AgentConfig = {
-            name: 'Bare',
-            provider: 'anthropic',
-            model: 'sonnet',
-            working_directory: '/tmp/bare',
-        };
-
-        await invokeAgent(agent, 'bare', 'hello', '/tmp/workspace', true);
-
-        const { args } = getSpawnArgs();
-        expect(args).not.toContain('--allowedTools');
-    });
-
     it('includes -c flag when continuing conversation', async () => {
-        const settings: Settings = {
-            permissions: { allowedTools: ['Read'], deniedTools: [] },
-            agents: {
-                coder: {
-                    name: 'Coder',
-                    provider: 'anthropic',
-                    model: 'sonnet',
-                    working_directory: '/tmp/coder',
-                },
-            },
-        };
-        mockedGetSettings.mockReturnValue(settings);
-
         const agent: AgentConfig = {
             name: 'Coder',
             provider: 'anthropic',
@@ -245,19 +101,6 @@ describe('invokeAgent - Claude argument construction', () => {
     });
 
     it('does not include -c flag when resetting conversation', async () => {
-        const settings: Settings = {
-            permissions: { allowedTools: ['Read'], deniedTools: [] },
-            agents: {
-                coder: {
-                    name: 'Coder',
-                    provider: 'anthropic',
-                    model: 'sonnet',
-                    working_directory: '/tmp/coder',
-                },
-            },
-        };
-        mockedGetSettings.mockReturnValue(settings);
-
         const agent: AgentConfig = {
             name: 'Coder',
             provider: 'anthropic',
@@ -272,19 +115,6 @@ describe('invokeAgent - Claude argument construction', () => {
     });
 
     it('includes --model flag with resolved model ID', async () => {
-        const settings: Settings = {
-            permissions: { allowedTools: ['Read'], deniedTools: [] },
-            agents: {
-                coder: {
-                    name: 'Coder',
-                    provider: 'anthropic',
-                    model: 'sonnet',
-                    working_directory: '/tmp/coder',
-                },
-            },
-        };
-        mockedGetSettings.mockReturnValue(settings);
-
         const agent: AgentConfig = {
             name: 'Coder',
             provider: 'anthropic',
@@ -311,19 +141,6 @@ describe('invokeAgent - environment variables', () => {
     }
 
     it('passes TINYCLAW_AGENT_ID env var to Claude spawn', async () => {
-        const settings: Settings = {
-            permissions: { allowedTools: ['Read'], deniedTools: [] },
-            agents: {
-                coder: {
-                    name: 'Coder',
-                    provider: 'anthropic',
-                    model: 'sonnet',
-                    working_directory: '/tmp/coder',
-                },
-            },
-        };
-        mockedGetSettings.mockReturnValue(settings);
-
         const agent: AgentConfig = {
             name: 'Coder',
             provider: 'anthropic',
@@ -338,19 +155,6 @@ describe('invokeAgent - environment variables', () => {
     });
 
     it('passes TINYCLAW_CONFIG_HOME env var to Claude spawn', async () => {
-        const settings: Settings = {
-            permissions: { allowedTools: ['Read'], deniedTools: [] },
-            agents: {
-                coder: {
-                    name: 'Coder',
-                    provider: 'anthropic',
-                    model: 'sonnet',
-                    working_directory: '/tmp/coder',
-                },
-            },
-        };
-        mockedGetSettings.mockReturnValue(settings);
-
         const agent: AgentConfig = {
             name: 'Coder',
             provider: 'anthropic',
@@ -366,8 +170,6 @@ describe('invokeAgent - environment variables', () => {
     });
 
     it('does not pass TINYCLAW_AGENT_ID for codex provider', async () => {
-        mockedGetSettings.mockReturnValue({});
-
         const agent: AgentConfig = {
             name: 'CodexAgent',
             provider: 'openai',
@@ -394,8 +196,6 @@ describe('invokeAgent - Codex provider', () => {
     }
 
     it('uses codex CLI for openai provider', async () => {
-        mockedGetSettings.mockReturnValue({});
-
         const agent: AgentConfig = {
             name: 'CodexAgent',
             provider: 'openai',
@@ -411,10 +211,6 @@ describe('invokeAgent - Codex provider', () => {
     });
 
     it('does not include --allowedTools for codex provider', async () => {
-        mockedGetSettings.mockReturnValue({
-            permissions: { allowedTools: ['Read', 'Write'], deniedTools: [] },
-        });
-
         const agent: AgentConfig = {
             name: 'CodexAgent',
             provider: 'openai',

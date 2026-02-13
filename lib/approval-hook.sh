@@ -109,19 +109,28 @@ while [ "$ELAPSED" -lt "$TIMEOUT" ]; do
                 exit 0
                 ;;
             always_allow)
-                # Add tool to settings.json allowedTools (use TOOL_NAME from stdin input)
-                # Update settings.json: add to agent-specific or global allowedTools
-                if jq -e --arg id "$AGENT_ID" '.agents[$id].permissions.allowedTools' "$SETTINGS_FILE" >/dev/null 2>&1; then
-                    # Agent has its own allowedTools — add there
-                    jq --arg id "$AGENT_ID" --arg tool "$TOOL_NAME" \
-                        '.agents[$id].permissions.allowedTools += [$tool] | .agents[$id].permissions.allowedTools |= unique' \
-                        "$SETTINGS_FILE" > "$SETTINGS_FILE.tmp" && mv "$SETTINGS_FILE.tmp" "$SETTINGS_FILE"
-                else
-                    # Add to global allowedTools
-                    jq --arg tool "$TOOL_NAME" \
-                        '.permissions.allowedTools = ((.permissions.allowedTools // []) + [$tool] | unique)' \
-                        "$SETTINGS_FILE" > "$SETTINGS_FILE.tmp" && mv "$SETTINGS_FILE.tmp" "$SETTINGS_FILE"
+                # Add tool to this agent's .claude/settings.json permissions.allow
+                AGENT_DIR=$(jq -r --arg id "$AGENT_ID" '.agents[$id].working_directory // empty' "$SETTINGS_FILE" 2>/dev/null)
+                if [ -n "$AGENT_DIR" ] && [ -d "$AGENT_DIR" ]; then
+                    CLAUDE_SETTINGS="$AGENT_DIR/.claude/settings.json"
+                    mkdir -p "$AGENT_DIR/.claude"
+                    if [ -f "$CLAUDE_SETTINGS" ]; then
+                        jq --arg tool "$TOOL_NAME" \
+                            '.permissions.allow = ((.permissions.allow // []) + [$tool] | unique)' \
+                            "$CLAUDE_SETTINGS" > "$CLAUDE_SETTINGS.tmp" && mv "$CLAUDE_SETTINGS.tmp" "$CLAUDE_SETTINGS"
+                    else
+                        echo "{\"permissions\":{\"allow\":[\"$TOOL_NAME\"]}}" | jq '.' > "$CLAUDE_SETTINGS"
+                    fi
                 fi
+
+                echo '{"permissionDecision":"allow"}'
+                exit 0
+                ;;
+            always_allow_all)
+                # Add tool to TinyClaw's global allowedTools
+                jq --arg tool "$TOOL_NAME" \
+                    '.permissions.allowedTools = ((.permissions.allowedTools // []) + [$tool] | unique)' \
+                    "$SETTINGS_FILE" > "$SETTINGS_FILE.tmp" && mv "$SETTINGS_FILE.tmp" "$SETTINGS_FILE"
 
                 echo '{"permissionDecision":"allow"}'
                 exit 0

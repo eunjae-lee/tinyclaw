@@ -75,8 +75,9 @@ export function ensureAgentDirectory(agentDir: string): void {
 }
 
 /**
- * Configure the PreToolUse approval hook in the agent's .claude/settings.json.
+ * Configure the PreToolUse approval hook in the agent's .claude/settings.local.json.
  * Ensures the approval-hook.sh is registered as a hook for all tool uses.
+ * Uses settings.local.json since the hook path is machine-specific (git-ignored by Claude Code).
  * Also ensures the approvals directories exist.
  */
 export function configureApprovalHook(agentDir: string): void {
@@ -93,13 +94,13 @@ export function configureApprovalHook(agentDir: string): void {
     }
 
     const claudeSettingsDir = path.join(agentDir, '.claude');
-    const claudeSettingsFile = path.join(claudeSettingsDir, 'settings.json');
+    const claudeLocalFile = path.join(claudeSettingsDir, 'settings.local.json');
 
-    // Read existing settings or start fresh
+    // Read existing local settings or start fresh
     let settings: Record<string, any> = {};
-    if (fs.existsSync(claudeSettingsFile)) {
+    if (fs.existsSync(claudeLocalFile)) {
         try {
-            settings = JSON.parse(fs.readFileSync(claudeSettingsFile, 'utf8'));
+            settings = JSON.parse(fs.readFileSync(claudeLocalFile, 'utf8'));
         } catch {
             settings = {};
         }
@@ -122,7 +123,7 @@ export function configureApprovalHook(agentDir: string): void {
     };
 
     fs.mkdirSync(claudeSettingsDir, { recursive: true });
-    fs.writeFileSync(claudeSettingsFile, JSON.stringify(settings, null, 2));
+    fs.writeFileSync(claudeLocalFile, JSON.stringify(settings, null, 2));
 }
 
 /**

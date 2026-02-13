@@ -19,7 +19,7 @@ import { configureApprovalHook } from '../lib/agent-setup';
 
 describe('configureApprovalHook', () => {
     const testAgentDir = path.join(TEST_ROOT, 'agent');
-    const claudeSettingsPath = path.join(testAgentDir, '.claude', 'settings.json');
+    const claudeLocalPath = path.join(testAgentDir, '.claude', 'settings.local.json');
 
     beforeEach(() => {
         // Create all directories fresh
@@ -35,11 +35,11 @@ describe('configureApprovalHook', () => {
         fs.rmSync(TEST_ROOT, { recursive: true, force: true });
     });
 
-    it('writes hooks config to agent .claude/settings.json', () => {
+    it('writes hooks config to agent .claude/settings.local.json', () => {
         configureApprovalHook(testAgentDir);
 
-        expect(fs.existsSync(claudeSettingsPath)).toBe(true);
-        const settings = JSON.parse(fs.readFileSync(claudeSettingsPath, 'utf8'));
+        expect(fs.existsSync(claudeLocalPath)).toBe(true);
+        const settings = JSON.parse(fs.readFileSync(claudeLocalPath, 'utf8'));
 
         expect(settings.hooks).toBeDefined();
         expect(settings.hooks.PreToolUse).toHaveLength(1);
@@ -52,7 +52,7 @@ describe('configureApprovalHook', () => {
     it('uses absolute path to approval-hook.sh', () => {
         configureApprovalHook(testAgentDir);
 
-        const settings = JSON.parse(fs.readFileSync(claudeSettingsPath, 'utf8'));
+        const settings = JSON.parse(fs.readFileSync(claudeLocalPath, 'utf8'));
         const command = settings.hooks.PreToolUse[0].hooks[0].command;
 
         expect(path.isAbsolute(command)).toBe(true);
@@ -60,14 +60,14 @@ describe('configureApprovalHook', () => {
     });
 
     it('merges with existing settings without overwriting', () => {
-        fs.writeFileSync(claudeSettingsPath, JSON.stringify({
+        fs.writeFileSync(claudeLocalPath, JSON.stringify({
             existingKey: 'existingValue',
             anotherSetting: true,
         }, null, 2));
 
         configureApprovalHook(testAgentDir);
 
-        const settings = JSON.parse(fs.readFileSync(claudeSettingsPath, 'utf8'));
+        const settings = JSON.parse(fs.readFileSync(claudeLocalPath, 'utf8'));
         expect(settings.existingKey).toBe('existingValue');
         expect(settings.anotherSetting).toBe(true);
         expect(settings.hooks).toBeDefined();
@@ -86,11 +86,11 @@ describe('configureApprovalHook', () => {
         fs.unlinkSync(path.join(FAKE_SCRIPT_DIR, 'lib', 'approval-hook.sh'));
 
         // Write existing settings that should not be modified
-        fs.writeFileSync(claudeSettingsPath, JSON.stringify({ keep: true }, null, 2));
+        fs.writeFileSync(claudeLocalPath, JSON.stringify({ keep: true }, null, 2));
 
         configureApprovalHook(testAgentDir);
 
-        const settings = JSON.parse(fs.readFileSync(claudeSettingsPath, 'utf8'));
+        const settings = JSON.parse(fs.readFileSync(claudeLocalPath, 'utf8'));
         expect(settings.hooks).toBeUndefined();
         expect(settings.keep).toBe(true);
     });

@@ -2,7 +2,7 @@ import { spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { AgentConfig, TeamConfig, Settings } from './types';
-import { SCRIPT_DIR, TINYCLAW_CONFIG_HOME, resolveClaudeModel, resolveCodexModel, getSettings, resolvePermissions } from './config';
+import { SCRIPT_DIR, TINYCLAW_CONFIG_HOME, resolveClaudeModel, resolveCodexModel } from './config';
 import { log } from './logging';
 import { ensureAgentDirectory, updateAgentTeammates } from './agent-setup';
 
@@ -125,13 +125,8 @@ export async function invokeAgent(
         }
 
         const modelId = resolveClaudeModel(agent.model);
-        const settings = getSettings();
-        const permissions = resolvePermissions(settings, agentId);
 
         const claudeArgs: string[] = [];
-        if (permissions.allowedTools && permissions.allowedTools.length > 0) {
-            claudeArgs.push('--allowedTools', permissions.allowedTools.join(','));
-        }
         if (modelId) {
             claudeArgs.push('--model', modelId);
         }

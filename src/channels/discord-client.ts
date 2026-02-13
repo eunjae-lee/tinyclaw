@@ -700,12 +700,17 @@ async function checkPendingApprovals(): Promise<void> {
                 .setLabel('Always allow')
                 .setStyle(ButtonStyle.Success);
 
+            const alwaysAllBtn = new ButtonBuilder()
+                .setCustomId(`always_all_${requestId}`)
+                .setLabel('Always allow globally')
+                .setStyle(ButtonStyle.Success);
+
             const denyBtn = new ButtonBuilder()
                 .setCustomId(`deny_${requestId}`)
                 .setLabel('Deny')
                 .setStyle(ButtonStyle.Danger);
 
-            const row = new ActionRowBuilder<ButtonBuilder>().addComponents(allowBtn, alwaysBtn, denyBtn);
+            const row = new ActionRowBuilder<ButtonBuilder>().addComponents(allowBtn, alwaysBtn, alwaysAllBtn, denyBtn);
 
             const content = `**Tool approval needed**\nAgent \`${approval.agent_id}\` wants to use **${approval.tool_name}**\n\`\`\`\n${inputDisplay}\n\`\`\``;
 
@@ -745,6 +750,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
     if (customId.startsWith('approve_')) {
         action = 'allow';
         requestId = customId.substring('approve_'.length);
+    } else if (customId.startsWith('always_all_')) {
+        action = 'always_allow_all';
+        requestId = customId.substring('always_all_'.length);
     } else if (customId.startsWith('always_')) {
         action = 'always_allow';
         requestId = customId.substring('always_'.length);
@@ -755,7 +763,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         return; // Not an approval button
     }
 
-    // Read pending file to get tool_name (for always_allow)
+    // Read pending file to get tool_name (for always_allow / always_allow_all)
     let toolName = '';
     const pendingFile = path.join(APPROVALS_PENDING, `${requestId}.json`);
     try {
@@ -768,7 +776,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     // Write decision file
     const decisionFile = path.join(APPROVALS_DECISIONS, `${requestId}.json`);
     const decision: Record<string, string> = { decision: action };
-    if (action === 'always_allow' && toolName) {
+    if ((action === 'always_allow' || action === 'always_allow_all') && toolName) {
         decision.tool_name = toolName;
     }
 
@@ -787,7 +795,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
             replyText = 'Approved (this time)';
             break;
         case 'always_allow':
-            replyText = `Always allowed \`${toolName}\``;
+            replyText = `Always allowed \`${toolName}\` for this agent`;
+            break;
+        case 'always_allow_all':
+            replyText = `Always allowed \`${toolName}\` globally`;
             break;
         case 'deny':
             replyText = 'Denied';
