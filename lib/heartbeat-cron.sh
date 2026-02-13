@@ -63,26 +63,25 @@ while true; do
             AGENT_DIR="$WORKSPACE_PATH/$AGENT_ID"
         fi
 
-        # Read agent-specific heartbeat.md
+        # Read agent-specific heartbeat.md (skip agents without one)
         HEARTBEAT_FILE="$AGENT_DIR/heartbeat.md"
-        if [ -f "$HEARTBEAT_FILE" ]; then
-            PROMPT=$(cat "$HEARTBEAT_FILE")
-            log "  → Agent @$AGENT_ID: using custom heartbeat.md"
-        else
-            PROMPT="Quick status check: Any pending tasks? Keep response brief."
-            log "  → Agent @$AGENT_ID: using default prompt"
+        if [ ! -f "$HEARTBEAT_FILE" ]; then
+            log "  → Agent @$AGENT_ID: no heartbeat.md, skipping"
+            continue
         fi
+        PROMPT=$(cat "$HEARTBEAT_FILE")
+        log "  → Agent @$AGENT_ID: using heartbeat.md"
 
         # Generate unique message ID
         MESSAGE_ID="heartbeat_${AGENT_ID}_$(date +%s)_$$"
 
-        # Write to queue with @agent_id routing prefix
+        # Write to queue with !agent_id routing prefix
         cat > "$QUEUE_INCOMING/${MESSAGE_ID}.json" << EOF
 {
   "channel": "heartbeat",
   "sender": "System",
   "senderId": "heartbeat_${AGENT_ID}",
-  "message": "@${AGENT_ID} ${PROMPT}",
+  "message": "!${AGENT_ID} ${PROMPT}",
   "timestamp": $(date +%s)000,
   "messageId": "$MESSAGE_ID"
 }
