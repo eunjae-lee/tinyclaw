@@ -11,7 +11,9 @@
     "visualize": "node dist/visualizer/team-visualizer.js",
     "test": "vitest run",
     "test:watch": "vitest",
-    "prepare": "husky"
+    "prepare": "husky",
+    "launchd:install": "sed \"s|TINYCLAW_BIN_PATH|$(cd \"$(dirname bin/tinyclaw)\" && pwd)/$(basename bin/tinyclaw)|\" config/com.tinyclaw.daemon.plist > ~/Library/LaunchAgents/com.tinyclaw.daemon.plist && launchctl load ~/Library/LaunchAgents/com.tinyclaw.daemon.plist",
+    "launchd:uninstall": "launchctl unload ~/Library/LaunchAgents/com.tinyclaw.daemon.plist 2>/dev/null; rm -f ~/Library/LaunchAgents/com.tinyclaw.daemon.plist"
   },
   "dependencies": {
     "@types/react": "^19.2.14",

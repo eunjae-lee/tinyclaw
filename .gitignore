@@ -13,6 +13,7 @@ dist/
 .tinyclaw/settings.json
 .tinyclaw/files
 .tinyclaw/events
+.tinyclaw/.update_check
 .tinyclaw/approvals/
 
 .wwebjs_cache
