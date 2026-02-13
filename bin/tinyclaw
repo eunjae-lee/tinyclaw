@@ -20,4 +20,6 @@ TINYCLAW_DIR="$(cd "$(dirname "$TINYCLAW_BIN")" && pwd)"
 export TINYCLAW_HOME="$(dirname "$TINYCLAW_DIR")"
 
 # Execute the main script with all arguments
-exec "$TINYCLAW_HOME/tinyclaw.sh" "$@"
+# Use $BASH to propagate the current bash interpreter (important for launchd
+# which doesn't have /opt/homebrew/bin in PATH, so env bash finds /bin/bash 3.2)
+exec "$BASH" "$TINYCLAW_HOME/tinyclaw.sh" "$@"
