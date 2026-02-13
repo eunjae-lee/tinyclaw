@@ -72,6 +72,22 @@ describe('invokeAgent - Claude argument construction', () => {
         expect(args).not.toContain('--allowedTools');
     });
 
+    it('passes --permission-mode default to enforce permissions in print mode', async () => {
+        const agent: AgentConfig = {
+            name: 'Coder',
+            provider: 'anthropic',
+            model: 'sonnet',
+            working_directory: '/tmp/coder',
+        };
+
+        await invokeAgent(agent, 'coder', 'hello', '/tmp/workspace', true);
+
+        const { args } = getSpawnArgs();
+        const modeIndex = args.indexOf('--permission-mode');
+        expect(modeIndex).toBeGreaterThan(-1);
+        expect(args[modeIndex + 1]).toBe('default');
+    });
+
     it('does not include --dangerously-skip-permissions', async () => {
         const agent: AgentConfig = {
             name: 'Coder',

@@ -126,7 +126,7 @@ export async function invokeAgent(
 
         const modelId = resolveClaudeModel(agent.model);
 
-        const claudeArgs: string[] = [];
+        const claudeArgs: string[] = ['--permission-mode', 'default'];
         if (modelId) {
             claudeArgs.push('--model', modelId);
         }
