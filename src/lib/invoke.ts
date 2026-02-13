@@ -55,7 +55,8 @@ export async function invokeAgent(
     workspacePath: string,
     shouldReset: boolean,
     agents: Record<string, AgentConfig> = {},
-    teams: Record<string, TeamConfig> = {}
+    teams: Record<string, TeamConfig> = {},
+    messageId?: string
 ): Promise<string> {
     // Ensure agent directory exists with config files
     const agentDir = path.join(workspacePath, agentId);
@@ -142,6 +143,7 @@ export async function invokeAgent(
         return await runCommand('claude', claudeArgs, workingDir, {
             TINYCLAW_AGENT_ID: agentId,
             TINYCLAW_CONFIG_HOME,
+            ...(messageId ? { TINYCLAW_MESSAGE_ID: messageId } : {}),
         });
     }
 }

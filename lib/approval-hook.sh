@@ -71,6 +71,9 @@ REQUEST_ID="$(date +%s)_$$"
 # Extract a short summary of tool_input for the approval message
 TOOL_INPUT_SUMMARY=$(echo "$INPUT" | jq -c '.tool_input // {}' 2>/dev/null | head -c 500)
 
+# Read message ID from environment (set by queue-processor via invoke.ts)
+MESSAGE_ID="${TINYCLAW_MESSAGE_ID:-}"
+
 # Write pending approval file
 cat > "$PENDING_DIR/$REQUEST_ID.json" <<EOF
 {
@@ -78,6 +81,7 @@ cat > "$PENDING_DIR/$REQUEST_ID.json" <<EOF
     "tool_name": "$TOOL_NAME",
     "tool_input_summary": $(echo "$TOOL_INPUT_SUMMARY" | jq -R .),
     "agent_id": "$AGENT_ID",
+    "message_id": "$MESSAGE_ID",
     "timestamp": $(date +%s),
     "notified": false
 }

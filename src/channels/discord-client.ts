@@ -590,6 +590,7 @@ interface PendingApproval {
     tool_name: string;
     tool_input_summary: string;
     agent_id: string;
+    message_id?: string;
     timestamp: number;
     notified: boolean;
 }
@@ -637,9 +638,6 @@ async function checkPendingApprovals(): Promise<void> {
         }
 
         try {
-            // Fetch admin user and send DM
-            const adminUser = await client.users.fetch(adminUserId);
-
             // Truncate tool input summary for display
             let inputDisplay = approval.tool_input_summary || '{}';
             if (inputDisplay.length > 300) {
@@ -663,19 +661,26 @@ async function checkPendingApprovals(): Promise<void> {
 
             const row = new ActionRowBuilder<ButtonBuilder>().addComponents(allowBtn, alwaysBtn, denyBtn);
 
-            await adminUser.send({
-                content: `**Tool approval needed**\nAgent \`${approval.agent_id}\` wants to use **${approval.tool_name}**\n\`\`\`\n${inputDisplay}\n\`\`\``,
-                components: [row],
-            });
+            const content = `**Tool approval needed**\nAgent \`${approval.agent_id}\` wants to use **${approval.tool_name}**\n\`\`\`\n${inputDisplay}\n\`\`\``;
+
+            // Try to post in the same thread/channel as the original message
+            const pending = approval.message_id ? pendingMessages.get(approval.message_id) : undefined;
+            if (pending) {
+                await pending.channel.send({ content, components: [row] });
+            } else {
+                // Fallback to DM
+                const adminUser = await client.users.fetch(adminUserId);
+                await adminUser.send({ content, components: [row] });
+            }
 
             // Mark as notified (update file and in-memory set)
             notifiedApprovals.add(requestId);
             approval.notified = true;
             fs.writeFileSync(filePath, JSON.stringify(approval, null, 2));
 
-            log('INFO', `Sent approval request to admin for ${approval.tool_name} (${requestId})`);
+            log('INFO', `Sent approval request for ${approval.tool_name} (${requestId})${pending ? ' in thread' : ' via DM'}`);
         } catch (err) {
-            log('ERROR', `Failed to send approval DM: ${(err as Error).message}`);
+            log('ERROR', `Failed to send approval request: ${(err as Error).message}`);
         }
     }
 }
