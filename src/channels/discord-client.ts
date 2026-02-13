@@ -6,7 +6,8 @@
  */
 
 import {
-    Client, Events, GatewayIntentBits, Partials, Message, DMChannel, AttachmentBuilder,
+    Client, Events, GatewayIntentBits, Partials, Message, DMChannel, TextChannel,
+    ThreadChannel, ChannelType, AttachmentBuilder,
     ButtonBuilder, ActionRowBuilder, ButtonStyle, ButtonInteraction,
 } from 'discord.js';
 import 'dotenv/config';
@@ -44,8 +45,9 @@ if (!DISCORD_BOT_TOKEN || DISCORD_BOT_TOKEN === 'your_token_here') {
 
 interface PendingMessage {
     message: Message;
-    channel: DMChannel;
+    channel: DMChannel | TextChannel | ThreadChannel;
     timestamp: number;
+    needsThread: boolean;
 }
 
 interface QueueData {
@@ -65,6 +67,7 @@ interface ResponseData {
     originalMessage: string;
     timestamp: number;
     messageId: string;
+    agent?: string;
     files?: string[];
 }
 
@@ -116,6 +119,29 @@ function downloadFile(url: string, destPath: string): Promise<void> {
 // Track pending messages (waiting for response)
 const pendingMessages = new Map<string, PendingMessage>();
 let processingOutgoingQueue = false;
+
+// Track threads created by the bot (lost on restart — users can re-trigger with @mention)
+const botOwnedThreads = new Set<string>();
+
+// Read allowed channel IDs from settings (re-reads each call so changes don't require restart)
+function getAllowedChannels(): string[] {
+    try {
+        const settings = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8'));
+        return settings.channels?.discord?.allowed_channels ?? [];
+    } catch {
+        return [];
+    }
+}
+
+// Read heartbeat channel ID from settings (re-reads each call)
+function getHeartbeatChannel(): string | null {
+    try {
+        const settings = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8'));
+        return settings.channels?.discord?.heartbeat_channel || null;
+    } catch {
+        return null;
+    }
+}
 
 // Logger
 function log(level: string, message: string): void {
@@ -211,6 +237,7 @@ const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.DirectMessages,
+        GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
     ],
     partials: [
@@ -222,7 +249,7 @@ const client = new Client({
 // Client ready
 client.on(Events.ClientReady, (readyClient) => {
     log('INFO', `Discord bot connected as ${readyClient.user.tag}`);
-    log('INFO', 'Listening for DMs...');
+    log('INFO', 'Listening for DMs and server messages...');
 });
 
 // Message received - Write to queue
@@ -233,9 +260,49 @@ client.on(Events.MessageCreate, async (message: Message) => {
             return;
         }
 
-        // Skip non-DM messages (guild = server channel)
-        if (message.guild) {
-            return;
+        // Determine reply channel and whether we need a thread
+        let replyChannel: DMChannel | TextChannel | ThreadChannel;
+        let needsThread = false;
+
+        if (!message.guild) {
+            // DM — keep existing behavior
+            replyChannel = message.channel as DMChannel;
+        } else if (
+            message.channel.type === ChannelType.PublicThread ||
+            message.channel.type === ChannelType.PrivateThread
+        ) {
+            // Thread message — respond if bot-owned, @mentioned, or thread started on a bot message
+            const thread = message.channel as ThreadChannel;
+            const isMentioned = message.mentions.has(client.user!);
+
+            if (!botOwnedThreads.has(thread.id) && !isMentioned) {
+                // Check if the thread was started on a message sent by the bot
+                try {
+                    const starterMessage = await thread.fetchStarterMessage();
+                    if (starterMessage?.author.id === client.user!.id) {
+                        botOwnedThreads.add(thread.id);
+                    } else {
+                        return;
+                    }
+                } catch {
+                    return;
+                }
+            }
+
+            // Once we get here, auto-track so future messages don't re-fetch
+            botOwnedThreads.add(thread.id);
+            replyChannel = thread;
+        } else {
+            // Server channel message — check allowlist or @mention
+            const allowedChannels = getAllowedChannels();
+            const isAllowlisted = allowedChannels.includes(message.channel.id);
+            const isMentioned = message.mentions.has(client.user!);
+
+            if (!isAllowlisted && !isMentioned) {
+                return;
+            }
+            replyChannel = message.channel as TextChannel;
+            needsThread = true;
         }
 
         const hasAttachments = message.attachments.size > 0;
@@ -271,10 +338,15 @@ client.on(Events.MessageCreate, async (message: Message) => {
 
         let messageText = message.content || '';
 
+        // Strip bot @mention from message text so the agent doesn't see it
+        if (client.user) {
+            messageText = messageText.replace(new RegExp(`<@!?${client.user.id}>`, 'g'), '').trim();
+        }
+
         log('INFO', `Message from ${sender}: ${messageText.substring(0, 50)}${downloadedFiles.length > 0 ? ` [+${downloadedFiles.length} file(s)]` : ''}...`);
 
         // Check for agent list command
-        if (message.content.trim().match(/^[!/]agent$/i)) {
+        if (messageText.trim().match(/^[!/]agent$/i)) {
             log('INFO', 'Agent list command received');
             const agentList = getAgentListText();
             await message.reply(agentList);
@@ -282,7 +354,7 @@ client.on(Events.MessageCreate, async (message: Message) => {
         }
 
         // Check for team list command
-        if (message.content.trim().match(/^[!/]team$/i)) {
+        if (messageText.trim().match(/^[!/]team$/i)) {
             log('INFO', 'Team list command received');
             const teamList = getTeamListText();
             await message.reply(teamList);
@@ -303,7 +375,7 @@ client.on(Events.MessageCreate, async (message: Message) => {
         }
 
         // Show typing indicator
-        await (message.channel as DMChannel).sendTyping();
+        await replyChannel.sendTyping();
 
         // Build message text with file references
         let fullMessage = messageText;
@@ -331,8 +403,9 @@ client.on(Events.MessageCreate, async (message: Message) => {
         // Store pending message for response
         pendingMessages.set(messageId, {
             message: message,
-            channel: message.channel as DMChannel,
+            channel: replyChannel,
             timestamp: Date.now(),
+            needsThread: needsThread,
         });
 
         // Clean up old pending messages (older than 10 minutes)
@@ -370,6 +443,25 @@ async function checkOutgoingQueue(): Promise<void> {
                 // Find pending message
                 const pending = pendingMessages.get(messageId);
                 if (pending) {
+                    // Determine where to send the response
+                    let targetChannel: DMChannel | TextChannel | ThreadChannel = pending.channel;
+
+                    if (pending.needsThread) {
+                        // Create a thread from the original message
+                        try {
+                            const threadName = (pending.message.content || 'conversation').substring(0, 90);
+                            const thread = await pending.message.startThread({
+                                name: threadName,
+                                autoArchiveDuration: 1440,
+                            });
+                            botOwnedThreads.add(thread.id);
+                            targetChannel = thread;
+                        } catch (threadErr) {
+                            log('WARN', `Failed to create thread, falling back to channel reply: ${(threadErr as Error).message}`);
+                            // Fall back to direct channel reply (targetChannel remains as-is)
+                        }
+                    }
+
                     // Send any attached files
                     if (responseData.files && responseData.files.length > 0) {
                         const attachments: AttachmentBuilder[] = [];
@@ -382,7 +474,7 @@ async function checkOutgoingQueue(): Promise<void> {
                             }
                         }
                         if (attachments.length > 0) {
-                            await pending.channel.send({ files: attachments });
+                            await targetChannel.send({ files: attachments });
                             log('INFO', `Sent ${attachments.length} file(s) to Discord`);
                         }
                     }
@@ -391,12 +483,19 @@ async function checkOutgoingQueue(): Promise<void> {
                     if (responseText) {
                         const chunks = splitMessage(responseText);
 
-                        // First chunk as reply, rest as follow-up messages
-                        if (chunks.length > 0) {
-                            await pending.message.reply(chunks[0]!);
-                        }
-                        for (let i = 1; i < chunks.length; i++) {
-                            await pending.channel.send(chunks[i]!);
+                        if (pending.needsThread) {
+                            // Thread: send all chunks inside the thread (no reply to original)
+                            for (const chunk of chunks) {
+                                await targetChannel.send(chunk);
+                            }
+                        } else {
+                            // DM or existing thread: first chunk as reply, rest as follow-ups
+                            if (chunks.length > 0) {
+                                await pending.message.reply(chunks[0]!);
+                            }
+                            for (let i = 1; i < chunks.length; i++) {
+                                await targetChannel.send(chunks[i]!);
+                            }
                         }
                     }
 
@@ -415,6 +514,43 @@ async function checkOutgoingQueue(): Promise<void> {
                 // Don't delete file on error, might retry
             }
         }
+
+        // Process heartbeat responses
+        const heartbeatFiles = fs.readdirSync(QUEUE_OUTGOING)
+            .filter(f => f.startsWith('heartbeat_') && f.endsWith('.json'));
+
+        for (const file of heartbeatFiles) {
+            const filePath = path.join(QUEUE_OUTGOING, file);
+
+            try {
+                const heartbeatChannelId = getHeartbeatChannel();
+                if (!heartbeatChannelId) {
+                    // No heartbeat channel configured — leave file for heartbeat script
+                    continue;
+                }
+
+                const responseData: ResponseData = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+                const agentId = responseData.agent || responseData.sender || 'unknown';
+                const responseText = responseData.message || '';
+
+                const channel = await client.channels.fetch(heartbeatChannelId);
+                if (!channel || !channel.isTextBased()) {
+                    log('WARN', `Heartbeat channel ${heartbeatChannelId} not found or not text-based`);
+                    continue;
+                }
+
+                const formatted = `**Heartbeat — @${agentId}**\n${responseText}`;
+                const chunks = splitMessage(formatted);
+                for (const chunk of chunks) {
+                    await (channel as TextChannel).send(chunk);
+                }
+
+                fs.unlinkSync(filePath);
+                log('INFO', `Posted heartbeat response from ${agentId} to channel ${heartbeatChannelId}`);
+            } catch (error) {
+                log('ERROR', `Error processing heartbeat file ${file}: ${(error as Error).message}`);
+            }
+        }
     } catch (error) {
         log('ERROR', `Outgoing queue error: ${(error as Error).message}`);
     } finally {
@@ -424,6 +560,24 @@ async function checkOutgoingQueue(): Promise<void> {
 
 // Check outgoing queue every second
 setInterval(checkOutgoingQueue, 1000);
+
+// Auto-track threads created on bot messages
+client.on(Events.ThreadCreate, async (thread) => {
+    try {
+        const starterMessage = await thread.fetchStarterMessage();
+        if (starterMessage?.author.id === client.user?.id) {
+            botOwnedThreads.add(thread.id);
+            log('INFO', `Auto-tracked thread ${thread.id} (created on bot message)`);
+        }
+    } catch {
+        // Ignore — will be checked lazily on first message
+    }
+});
+
+// Clean up bot-owned thread tracker when threads are deleted
+client.on(Events.ThreadDelete, (thread) => {
+    botOwnedThreads.delete(thread.id);
+});
 
 // Refresh typing indicator every 8 seconds (Discord typing expires after ~10s)
 setInterval(() => {

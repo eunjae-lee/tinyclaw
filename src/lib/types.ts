@@ -29,7 +29,11 @@ export interface Settings {
     };
     channels?: {
         enabled?: string[];
-        discord?: { bot_token?: string };
+        discord?: {
+            bot_token?: string;
+            allowed_channels?: string[];
+            heartbeat_channel?: string;
+        };
     };
     models?: {
         provider?: string; // 'anthropic' or 'openai'

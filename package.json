@@ -3,6 +3,7 @@
   "version": "0.0.2",
   "description": "TinyClaw is a tiny agent that acts as your 24/7 personal assistant",
   "scripts": {
+    "restart": "npm run build && ~/.local/bin/tinyclaw restart",
     "build": "tsc && tsc -p tsconfig.visualizer.json && echo '{\"type\":\"module\"}' > dist/visualizer/package.json",
     "build:main": "tsc",
     "build:visualizer": "tsc -p tsconfig.visualizer.json && echo '{\"type\":\"module\"}' > dist/visualizer/package.json",
