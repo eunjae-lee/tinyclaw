@@ -73,14 +73,22 @@ describe('botOwnedThreads map behavior', () => {
 });
 
 describe('queue data agent field construction', () => {
-    // Simulates the logic in discord-client.ts that builds QueueData
+    // Simulates the updated logic in discord-client.ts that builds QueueData
+    // Priority: threadAgent > channelDefault > undefined
     function buildQueueAgent(
         channelType: 'thread' | 'channel' | 'dm',
         channelId: string,
         botOwnedThreads: Map<string, string | undefined>,
+        defaultAgents: Map<string, string> = new Map(),
+        parentChannelId?: string,
+        isGuild: boolean = true,
     ): string | undefined {
         const isThread = channelType === 'thread';
-        return isThread ? botOwnedThreads.get(channelId) : undefined;
+        const threadAgent = isThread ? botOwnedThreads.get(channelId) : undefined;
+        const channelDefault = isGuild
+            ? defaultAgents.get(isThread ? parentChannelId! : channelId)
+            : undefined;
+        return threadAgent ?? channelDefault;
     }
 
     it('includes agent for thread messages with known agent', () => {
@@ -97,7 +105,7 @@ describe('queue data agent field construction', () => {
         expect(buildQueueAgent('thread', 'thread-2', threads)).toBeUndefined();
     });
 
-    it('returns undefined for non-thread channel messages', () => {
+    it('returns undefined for non-thread channel messages without default', () => {
         const threads = new Map<string, string | undefined>();
         threads.set('thread-1', 'tc');
 
@@ -114,6 +122,48 @@ describe('queue data agent field construction', () => {
         const threads = new Map<string, string | undefined>();
 
         expect(buildQueueAgent('thread', 'unknown-thread', threads)).toBeUndefined();
+    });
+
+    it('uses channel default agent for channel messages', () => {
+        const threads = new Map<string, string | undefined>();
+        const defaults = new Map<string, string>();
+        defaults.set('channel-1', 'tc');
+
+        expect(buildQueueAgent('channel', 'channel-1', threads, defaults)).toBe('tc');
+    });
+
+    it('uses parent channel default agent for thread messages', () => {
+        const threads = new Map<string, string | undefined>();
+        threads.set('thread-1', undefined); // thread tracked but no explicit agent
+        const defaults = new Map<string, string>();
+        defaults.set('parent-channel', 'tc');
+
+        expect(buildQueueAgent('thread', 'thread-1', threads, defaults, 'parent-channel')).toBe('tc');
+    });
+
+    it('thread agent takes priority over channel default', () => {
+        const threads = new Map<string, string | undefined>();
+        threads.set('thread-1', 'coder');
+        const defaults = new Map<string, string>();
+        defaults.set('parent-channel', 'tc');
+
+        expect(buildQueueAgent('thread', 'thread-1', threads, defaults, 'parent-channel')).toBe('coder');
+    });
+
+    it('does not apply channel default for DMs', () => {
+        const threads = new Map<string, string | undefined>();
+        const defaults = new Map<string, string>();
+        defaults.set('dm-1', 'tc');
+
+        expect(buildQueueAgent('dm', 'dm-1', threads, defaults, undefined, false)).toBeUndefined();
+    });
+
+    it('returns undefined when channel has no default and no thread agent', () => {
+        const threads = new Map<string, string | undefined>();
+        const defaults = new Map<string, string>();
+        defaults.set('other-channel', 'tc');
+
+        expect(buildQueueAgent('channel', 'channel-1', threads, defaults)).toBeUndefined();
     });
 });
 
@@ -138,5 +188,87 @@ describe('thread creation stores response agent', () => {
 
         expect(botOwnedThreads.has(threadId)).toBe(true);
         expect(botOwnedThreads.get(threadId)).toBeUndefined();
+    });
+
+    it('falls back to parent channel default when response has no agent', () => {
+        const botOwnedThreads = new Map<string, string | undefined>();
+        const defaultAgents = new Map<string, string>();
+        defaultAgents.set('parent-channel', 'tc');
+
+        // Simulate: responseData.agent is undefined, fall back to parent channel default
+        const responseAgent = undefined;
+        const parentDefault = defaultAgents.get('parent-channel');
+        const threadId = 'new-thread-3';
+        botOwnedThreads.set(threadId, responseAgent ?? parentDefault);
+
+        expect(botOwnedThreads.get(threadId)).toBe('tc');
+    });
+
+    it('response agent takes priority over parent channel default', () => {
+        const botOwnedThreads = new Map<string, string | undefined>();
+        const defaultAgents = new Map<string, string>();
+        defaultAgents.set('parent-channel', 'tc');
+
+        const responseAgent = 'coder';
+        const parentDefault = defaultAgents.get('parent-channel');
+        const threadId = 'new-thread-4';
+        botOwnedThreads.set(threadId, responseAgent ?? parentDefault);
+
+        expect(botOwnedThreads.get(threadId)).toBe('coder');
+    });
+});
+
+describe('getAllowedChannels normalization', () => {
+    // Simulates the normalization logic in getAllowedChannels
+    function normalizeAllowedChannels(
+        raw: Array<string | { channelId: string; defaultAgent: string }>,
+    ): { channelIds: string[]; defaultAgents: Map<string, string> } {
+        const channelIds: string[] = [];
+        const defaultAgents = new Map<string, string>();
+        for (const entry of raw) {
+            if (typeof entry === 'string') {
+                channelIds.push(entry);
+            } else {
+                channelIds.push(entry.channelId);
+                defaultAgents.set(entry.channelId, entry.defaultAgent);
+            }
+        }
+        return { channelIds, defaultAgents };
+    }
+
+    it('handles plain string channel IDs (backward compatible)', () => {
+        const result = normalizeAllowedChannels(['123', '456']);
+
+        expect(result.channelIds).toEqual(['123', '456']);
+        expect(result.defaultAgents.size).toBe(0);
+    });
+
+    it('handles object entries with defaultAgent', () => {
+        const result = normalizeAllowedChannels([
+            { channelId: '123', defaultAgent: 'tc' },
+        ]);
+
+        expect(result.channelIds).toEqual(['123']);
+        expect(result.defaultAgents.get('123')).toBe('tc');
+    });
+
+    it('handles mixed array of strings and objects', () => {
+        const result = normalizeAllowedChannels([
+            '123',
+            { channelId: '456', defaultAgent: 'coder' },
+            '789',
+        ]);
+
+        expect(result.channelIds).toEqual(['123', '456', '789']);
+        expect(result.defaultAgents.size).toBe(1);
+        expect(result.defaultAgents.get('456')).toBe('coder');
+        expect(result.defaultAgents.has('123')).toBe(false);
+    });
+
+    it('handles empty array', () => {
+        const result = normalizeAllowedChannels([]);
+
+        expect(result.channelIds).toEqual([]);
+        expect(result.defaultAgents.size).toBe(0);
     });
 });

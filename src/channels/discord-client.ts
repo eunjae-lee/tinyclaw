@@ -122,12 +122,23 @@ let processingOutgoingQueue = false;
 const botOwnedThreads = new Map<string, string | undefined>();
 
 // Read allowed channel IDs from settings (re-reads each call so changes don't require restart)
-function getAllowedChannels(): string[] {
+function getAllowedChannels(): { channelIds: string[]; defaultAgents: Map<string, string> } {
     try {
         const settings = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8'));
-        return settings.channels?.discord?.allowed_channels ?? [];
+        const raw = settings.channels?.discord?.allowed_channels ?? [];
+        const channelIds: string[] = [];
+        const defaultAgents = new Map<string, string>();
+        for (const entry of raw) {
+            if (typeof entry === 'string') {
+                channelIds.push(entry);
+            } else {
+                channelIds.push(entry.channelId);
+                defaultAgents.set(entry.channelId, entry.defaultAgent);
+            }
+        }
+        return { channelIds, defaultAgents };
     } catch {
-        return [];
+        return { channelIds: [], defaultAgents: new Map() };
     }
 }
 
@@ -294,8 +305,8 @@ client.on(Events.MessageCreate, async (message: Message) => {
             replyChannel = thread;
         } else {
             // Server channel message — check allowlist or @mention
-            const allowedChannels = getAllowedChannels();
-            const isAllowlisted = allowedChannels.includes(message.channel.id);
+            const { channelIds, defaultAgents } = getAllowedChannels();
+            const isAllowlisted = channelIds.includes(message.channel.id);
             const isMentioned = message.mentions.has(client.user!);
 
             if (!isAllowlisted && !isMentioned) {
@@ -384,11 +395,17 @@ client.on(Events.MessageCreate, async (message: Message) => {
             fullMessage = fullMessage ? `${fullMessage}\n\n${fileRefs}` : fileRefs;
         }
 
-        // Look up agent routing for thread messages
-        const threadAgent = (message.channel.type === ChannelType.PublicThread ||
-                             message.channel.type === ChannelType.PrivateThread)
-            ? botOwnedThreads.get(message.channel.id)
+        // Look up agent routing: thread agent > channel default > undefined
+        const isThread = message.channel.type === ChannelType.PublicThread ||
+                         message.channel.type === ChannelType.PrivateThread;
+        const threadAgent = isThread ? botOwnedThreads.get(message.channel.id) : undefined;
+        const channelDefault = message.guild
+            ? (() => {
+                const { defaultAgents: da } = getAllowedChannels();
+                return da.get(isThread ? (message.channel as ThreadChannel).parentId! : message.channel.id);
+            })()
             : undefined;
+        const agent = threadAgent ?? channelDefault;
 
         // Write to incoming queue
         const queueData: QueueData = {
@@ -399,7 +416,7 @@ client.on(Events.MessageCreate, async (message: Message) => {
             timestamp: Date.now(),
             messageId: messageId,
             files: downloadedFiles.length > 0 ? downloadedFiles : undefined,
-            agent: threadAgent,
+            agent: agent,
         };
 
         const queueFile = path.join(QUEUE_INCOMING, `discord_${messageId}.json`);
@@ -461,7 +478,9 @@ async function checkOutgoingQueue(): Promise<void> {
                                 name: threadName,
                                 autoArchiveDuration: 1440,
                             });
-                            botOwnedThreads.set(thread.id, responseData.agent);
+                            const { defaultAgents: da } = getAllowedChannels();
+                            const parentDefault = da.get(pending.channel.id);
+                            botOwnedThreads.set(thread.id, responseData.agent ?? parentDefault);
                             targetChannel = thread;
                         } catch (threadErr) {
                             log('WARN', `Failed to create thread, falling back to channel reply: ${(threadErr as Error).message}`);
@@ -540,13 +559,28 @@ async function checkOutgoingQueue(): Promise<void> {
                 const agentId = responseData.agent || responseData.sender || 'unknown';
                 const responseText = responseData.message || '';
 
+                // Parse heartbeat JSON response
+                let heartbeatMessage: string;
+                try {
+                    const parsed = JSON.parse(responseText.trim());
+                    if (parsed.status === 'ok') {
+                        fs.unlinkSync(filePath);
+                        log('INFO', `Heartbeat from ${agentId}: OK (suppressed)`);
+                        continue;
+                    }
+                    heartbeatMessage = parsed.message || responseText;
+                } catch {
+                    // Not valid JSON — use raw response text
+                    heartbeatMessage = responseText;
+                }
+
                 const channel = await client.channels.fetch(heartbeatChannelId);
                 if (!channel || !channel.isTextBased()) {
                     log('WARN', `Heartbeat channel ${heartbeatChannelId} not found or not text-based`);
                     continue;
                 }
 
-                const formatted = `**Heartbeat — @${agentId}**\n${responseText}`;
+                const formatted = `**Heartbeat — @${agentId}**\n${heartbeatMessage}`;
                 const chunks = splitMessage(formatted);
                 for (const chunk of chunks) {
                     await (channel as TextChannel).send(chunk);

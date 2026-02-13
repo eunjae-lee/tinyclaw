@@ -11,6 +11,8 @@ dist/
 .tinyclaw/queue/
 .tinyclaw/reset_flag
 .tinyclaw/settings.json
+.tinyclaw/credentials.json
+credentials.json
 .tinyclaw/files
 .tinyclaw/events
 .tinyclaw/.update_check

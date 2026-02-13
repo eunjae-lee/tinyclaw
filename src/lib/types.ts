@@ -22,6 +22,14 @@ export interface ChainStep {
     response: string;
 }
 
+export interface Credentials {
+    channels?: {
+        discord?: {
+            bot_token?: string;
+        };
+    };
+}
+
 export interface Settings {
     workspace?: {
         path?: string;
@@ -30,11 +38,11 @@ export interface Settings {
     channels?: {
         enabled?: string[];
         discord?: {
-            bot_token?: string;
-            allowed_channels?: string[];
+            allowed_channels?: Array<string | { channelId: string; defaultAgent: string }>;
             heartbeat_channel?: string;
         };
     };
+    admin_user_id?: string;  // Discord user ID for approval requests
     models?: {
         provider?: string; // 'anthropic' or 'openai'
         anthropic?: {
@@ -47,12 +55,16 @@ export interface Settings {
     agents?: Record<string, AgentConfig>;
     teams?: Record<string, TeamConfig>;
     permissions?: PermissionConfig;
-    admin_user_id?: string;  // Discord user ID for approval requests
     approvals?: {
         timeout?: number;      // seconds to wait for approval (default: 300)
     };
     monitoring?: {
         heartbeat_interval?: number;
+        active_hours?: Array<{
+            days: string[];    // e.g. ["mon","tue","wed","thu","fri"]
+            start: string;     // e.g. "09:00"
+            end: string;       // e.g. "22:00"
+        }>;
     };
 }
 

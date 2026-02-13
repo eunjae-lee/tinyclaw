@@ -26,8 +26,63 @@ log() {
 
 log "Heartbeat started (interval: ${INTERVAL}s)"
 
+# Check if current time falls within any active_hours window
+# Returns 0 (true) if active, 1 (false) if outside active hours
+is_active_hours() {
+    if [ ! -f "$SETTINGS_FILE" ] || ! command -v jq &> /dev/null; then
+        return 0  # No config or no jq — default to active
+    fi
+
+    local RULES
+    RULES=$(jq -r '.monitoring.active_hours // empty' "$SETTINGS_FILE" 2>/dev/null)
+    if [ -z "$RULES" ] || [ "$RULES" = "null" ]; then
+        return 0  # No active_hours configured — always active
+    fi
+
+    local RULE_COUNT
+    RULE_COUNT=$(jq -r '.monitoring.active_hours | length' "$SETTINGS_FILE" 2>/dev/null)
+    if [ "$RULE_COUNT" = "0" ]; then
+        return 0
+    fi
+
+    # Current day (lowercase 3-letter) and time in minutes since midnight
+    local TODAY NOW_H NOW_M NOW_MINS
+    TODAY=$(date '+%a' | tr '[:upper:]' '[:lower:]')
+    NOW_H=$(date '+%H')
+    NOW_M=$(date '+%M')
+    NOW_MINS=$(( 10#$NOW_H * 60 + 10#$NOW_M ))
+
+    for i in $(seq 0 $((RULE_COUNT - 1))); do
+        # Check if today matches any day in this rule
+        local DAY_MATCH
+        DAY_MATCH=$(jq -r ".monitoring.active_hours[$i].days[] | select(. == \"$TODAY\")" "$SETTINGS_FILE" 2>/dev/null)
+        if [ -z "$DAY_MATCH" ]; then
+            continue
+        fi
+
+        # Parse start/end times
+        local START_STR END_STR START_MINS END_MINS
+        START_STR=$(jq -r ".monitoring.active_hours[$i].start" "$SETTINGS_FILE" 2>/dev/null)
+        END_STR=$(jq -r ".monitoring.active_hours[$i].end" "$SETTINGS_FILE" 2>/dev/null)
+        START_MINS=$(( 10#${START_STR%%:*} * 60 + 10#${START_STR##*:} ))
+        END_MINS=$(( 10#${END_STR%%:*} * 60 + 10#${END_STR##*:} ))
+
+        if [ $NOW_MINS -ge $START_MINS ] && [ $NOW_MINS -lt $END_MINS ]; then
+            return 0  # Within this active window
+        fi
+    done
+
+    return 1  # No matching window — outside active hours
+}
+
 while true; do
     sleep "$INTERVAL"
+
+    # Skip heartbeat if outside active hours
+    if ! is_active_hours; then
+        log "Heartbeat skipped - outside active hours"
+        continue
+    fi
 
     log "Heartbeat check - scanning all agents..."
 
@@ -104,7 +159,14 @@ EOF
             if [ -f "$RESPONSE_FILE" ]; then
                 RESPONSE=$(cat "$RESPONSE_FILE" | jq -r '.message' 2>/dev/null || echo "")
                 if [ -n "$RESPONSE" ]; then
-                    log "  ← @$AGENT_ID: ${RESPONSE:0:80}..."
+                    # Parse JSON status from heartbeat response
+                    HB_STATUS=$(echo "$RESPONSE" | jq -r '.status // empty' 2>/dev/null)
+                    if [ "$HB_STATUS" = "ok" ]; then
+                        log "  ← @$AGENT_ID: OK (nothing to report)"
+                    else
+                        HB_MSG=$(echo "$RESPONSE" | jq -r '.message // empty' 2>/dev/null)
+                        log "  ← @$AGENT_ID: ${HB_MSG:-${RESPONSE:0:80}}..."
+                    fi
                     # Clean up response file
                     rm "$RESPONSE_FILE"
                 fi

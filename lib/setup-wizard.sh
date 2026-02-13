@@ -6,6 +6,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 TINYCLAW_CONFIG_HOME="${TINYCLAW_CONFIG_HOME:-$HOME/.tinyclaw/config}"
 TINYCLAW_CONFIG_WORKSPACE="${TINYCLAW_CONFIG_WORKSPACE:-$HOME/.tinyclaw/workspace}"
 SETTINGS_FILE="$TINYCLAW_CONFIG_HOME/settings.json"
+CREDENTIALS_FILE="$TINYCLAW_CONFIG_HOME/credentials.json"
 
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -216,7 +217,26 @@ fi
 
 AGENTS_JSON="$AGENTS_JSON },"
 
-# Write settings.json with layered structure
+# Write credentials.json (secrets — git-ignored)
+mkdir -p "$TINYCLAW_CONFIG_HOME"
+
+cat > "$CREDENTIALS_FILE" <<EOF
+{
+  "channels": {
+    "discord": {
+      "bot_token": "${DISCORD_TOKEN}"
+    }
+  }
+}
+EOF
+
+# Normalize credentials JSON with jq
+if command -v jq &> /dev/null; then
+    tmp_file="$CREDENTIALS_FILE.tmp"
+    jq '.' "$CREDENTIALS_FILE" > "$tmp_file" 2>/dev/null && mv "$tmp_file" "$CREDENTIALS_FILE"
+fi
+
+# Write settings.json (behavioral config — committable)
 if [ "$PROVIDER" = "anthropic" ]; then
     MODELS_SECTION='"models": { "provider": "anthropic", "anthropic": { "model": "'"${MODEL}"'" } }'
 else
@@ -236,10 +256,7 @@ cat > "$SETTINGS_FILE" <<EOF
     "name": "${WORKSPACE_NAME}"
   },
   "channels": {
-    "enabled": ["discord"],
-    "discord": {
-      "bot_token": "${DISCORD_TOKEN}"
-    }
+    "enabled": ["discord"]
   },
   ${ADMIN_LINE}
   ${AGENTS_JSON}
@@ -254,7 +271,7 @@ cat > "$SETTINGS_FILE" <<EOF
 }
 EOF
 
-# Normalize JSON with jq (fix any formatting issues)
+# Normalize settings JSON with jq
 if command -v jq &> /dev/null; then
     tmp_file="$SETTINGS_FILE.tmp"
     jq '.' "$SETTINGS_FILE" > "$tmp_file" 2>/dev/null && mv "$tmp_file" "$SETTINGS_FILE"
@@ -308,7 +325,8 @@ for agent_id in "${ADDITIONAL_AGENTS[@]}"; do
     echo -e "${GREEN}✓ Created agent directory: $AGENT_DIR${NC}"
 done
 
-echo -e "${GREEN}✓ Configuration saved to $SETTINGS_FILE${NC}"
+echo -e "${GREEN}✓ Credentials saved to $CREDENTIALS_FILE${NC}"
+echo -e "${GREEN}✓ Settings saved to $SETTINGS_FILE${NC}"
 echo ""
 echo "You can manage agents later with:"
 echo -e "  ${GREEN}./tinyclaw.sh agent list${NC}    - List agents"

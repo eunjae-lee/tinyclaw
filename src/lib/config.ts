@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { Settings, AgentConfig, TeamConfig, PermissionConfig, CLAUDE_MODEL_IDS, CODEX_MODEL_IDS } from './types';
+import { Settings, Credentials, AgentConfig, TeamConfig, PermissionConfig, CLAUDE_MODEL_IDS, CODEX_MODEL_IDS } from './types';
 
 export const SCRIPT_DIR = path.resolve(__dirname, '../..');
 export const TINYCLAW_CONFIG_HOME = process.env.TINYCLAW_CONFIG_HOME
@@ -10,6 +10,7 @@ export const TINYCLAW_CONFIG_WORKSPACE = process.env.TINYCLAW_CONFIG_WORKSPACE
 
 // Config paths (from TINYCLAW_CONFIG_HOME)
 export const SETTINGS_FILE = path.join(TINYCLAW_CONFIG_HOME, 'settings.json');
+export const CREDENTIALS_FILE = path.join(TINYCLAW_CONFIG_HOME, 'credentials.json');
 
 // Runtime/data paths (from TINYCLAW_CONFIG_HOME — these are operational data, not agent workspaces)
 export const QUEUE_INCOMING = path.join(TINYCLAW_CONFIG_HOME, 'queue/incoming');
@@ -40,6 +41,39 @@ export function getSettings(): Settings {
         }
 
         return settings;
+    } catch {
+        return {};
+    }
+}
+
+export function getCredentials(): Credentials {
+    // Primary: read from credentials.json
+    if (fs.existsSync(CREDENTIALS_FILE)) {
+        try {
+            return JSON.parse(fs.readFileSync(CREDENTIALS_FILE, 'utf8'));
+        } catch {
+            return {};
+        }
+    }
+
+    // Fallback: read bot_token from settings.json for backward compatibility
+    try {
+        const settingsData = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8'));
+        const credentials: Credentials = {};
+
+        if (settingsData.channels?.discord?.bot_token) {
+            credentials.channels = {
+                discord: {
+                    bot_token: settingsData.channels.discord.bot_token,
+                },
+            };
+            console.warn(
+                '[tinyclaw] Warning: bot_token found in settings.json instead of credentials.json. ' +
+                'Run the setup wizard or move bot_token to credentials.json.'
+            );
+        }
+
+        return credentials;
     } catch {
         return {};
     }

@@ -49,6 +49,9 @@ declare -A CHANNEL_TOKEN_ENV=(
     [discord]="DISCORD_BOT_TOKEN"
 )
 
+# Credentials file (secrets — git-ignored)
+CREDENTIALS_FILE="${TINYCLAW_CONFIG_HOME:-$HOME/.tinyclaw/config}/credentials.json"
+
 # Runtime state: filled by load_settings
 ACTIVE_CHANNELS=()
 declare -A CHANNEL_TOKENS=()
@@ -93,11 +96,16 @@ load_settings() {
         ACTIVE_CHANNELS+=("$ch")
     done <<< "$channels_json"
 
-    # Load tokens for each channel from nested structure
+    # Load tokens for each channel from credentials.json (with fallback to settings.json)
+    local token_source="$CREDENTIALS_FILE"
+    if [ ! -f "$CREDENTIALS_FILE" ]; then
+        echo -e "${YELLOW}Warning: credentials.json not found, reading tokens from settings.json (migration recommended)${NC}"
+        token_source="$SETTINGS_FILE"
+    fi
     for ch in "${ALL_CHANNELS[@]}"; do
         local token_key="${CHANNEL_TOKEN_KEY[$ch]:-}"
         if [ -n "$token_key" ]; then
-            CHANNEL_TOKENS[$ch]=$(jq -r ".channels.${ch}.bot_token // empty" "$SETTINGS_FILE" 2>/dev/null)
+            CHANNEL_TOKENS[$ch]=$(jq -r ".channels.${ch}.bot_token // empty" "$token_source" 2>/dev/null)
         fi
     done
 
