@@ -9,7 +9,7 @@ send_message() {
     log "[$source] Sending: ${message:0:50}..."
 
     cd "$SCRIPT_DIR"
-    RESPONSE=$(claude --dangerously-skip-permissions -c -p "$message" 2>&1)
+    RESPONSE=$(claude --allowedTools "Read,Grep,Glob,Write,Edit" -c -p "$message" 2>&1)
 
     echo "$RESPONSE"
 
@@ -55,19 +55,6 @@ channels_reset() {
     fi
 
     echo -e "${YELLOW}Resetting ${display} authentication...${NC}"
-
-    # WhatsApp has local session files to clear
-    if [ "$ch" = "whatsapp" ]; then
-        rm -rf "$SCRIPT_DIR/.tinyclaw/whatsapp-session"
-        rm -f "$SCRIPT_DIR/.tinyclaw/channels/whatsapp_ready"
-        rm -f "$SCRIPT_DIR/.tinyclaw/channels/whatsapp_qr.txt"
-        rm -rf "$SCRIPT_DIR/.wwebjs_cache"
-        echo -e "${GREEN}✓ WhatsApp session cleared${NC}"
-        echo ""
-        echo "Restart TinyClaw to re-authenticate:"
-        echo -e "  ${GREEN}./tinyclaw.sh restart${NC}"
-        return
-    fi
 
     # Token-based channels
     local token_key="${CHANNEL_TOKEN_KEY[$ch]:-}"

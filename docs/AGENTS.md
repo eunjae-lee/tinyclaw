@@ -120,7 +120,7 @@ Each agent has its own isolated workspace directory with complete copies of conf
 ~/tinyclaw-workspace/          # Or custom workspace name
 ├── coder/
 │   ├── .claude/               # Agent's own Claude config
-│   │   ├── settings.json
+│   │   ├── settings.json      # Includes PreToolUse approval hook
 │   │   ├── settings.local.json
 │   │   └── hooks/
 │   │       ├── session-start.sh
@@ -149,6 +149,9 @@ Templates and shared resources are stored in `~/.tinyclaw/`:
 ├── .claude/           # Template: Copied to each new agent
 ├── heartbeat.md       # Template: Copied to each new agent
 ├── AGENTS.md          # Template: Copied to each new agent
+├── approvals/         # SHARED: Tool approval IPC files
+│   ├── pending/       # Hook writes pending requests here
+│   └── decisions/     # Discord writes admin decisions here
 ├── channels/          # SHARED: Channel state (QR codes, ready flags)
 ├── files/             # SHARED: Uploaded files from all channels
 ├── logs/              # SHARED: Log files for all agents and channels
@@ -189,6 +192,90 @@ codex exec resume --last \
   --json \
   "User message here"
 ```
+
+### 5. Interactive Tool Approvals
+
+When an agent uses a tool not in its `allowedTools` list, TinyClaw's `PreToolUse` hook intercepts the call and requests approval from the admin via Discord.
+
+**Flow:**
+```
+Claude CLI → PreToolUse hook → checks allowedTools
+                             ↓ (tool not pre-approved)
+                       writes pending file → Discord polls pending/
+                                           → sends DM with buttons
+                             ↓ (admin clicks button)
+                       reads decision file ← Discord writes decision
+                             ↓
+                       returns allow/deny to Claude
+```
+
+**File-based IPC** in `~/.tinyclaw/approvals/`:
+- `pending/<request_id>.json` — hook writes, Discord reads
+- `decisions/<request_id>.json` — Discord writes, hook reads
+
+**Button options:**
+| Button | Effect |
+|--------|--------|
+| Allow this time | Approves this single tool invocation |
+| Always allow | Adds the tool to `settings.json` allowedTools and approves |
+| Deny | Rejects the tool use |
+
+**Configuration:**
+```json
+{
+  "admin_user_id": "123456789012345678",
+  "permissions": {
+    "allowedTools": ["Read", "Grep", "Glob", "Write", "Edit"],
+    "deniedTools": []
+  },
+  "approvals": {
+    "timeout": 300
+  }
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `admin_user_id` | Discord user ID that receives approval DMs |
+| `permissions.allowedTools` | Tools pre-approved for all agents (can be overridden per-agent) |
+| `approvals.timeout` | Seconds to wait for a response before auto-denying (default: 300) |
+
+**Agent workspace structure:**
+
+Each agent's `.claude/settings.json` is automatically configured with the approval hook:
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/path/to/tinyclaw/lib/approval-hook.sh",
+            "timeout": 600
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+The hook script:
+1. Reads tool name from stdin JSON
+2. Checks if tool is in the agent's resolved `allowedTools`
+3. If approved: exits silently (allows tool)
+4. If not approved: writes a pending file, polls for a decision
+5. Returns `{"permissionDecision": "allow"}` or `{"permissionDecision": "deny"}`
+
+**Environment variables** passed to the hook:
+- `TINYCLAW_AGENT_ID` — the agent ID (e.g., `coder`)
+- `TINYCLAW_HOME` — path to `~/.tinyclaw`
+
+**Getting your Discord user ID:**
+1. Open Discord Settings → Advanced → Enable "Developer Mode"
+2. Right-click your username → "Copy User ID"
 
 ## Configuration
 

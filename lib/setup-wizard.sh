@@ -17,66 +17,18 @@ echo -e "${GREEN}  TinyClaw - Setup Wizard${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 
-# --- Channel registry ---
-# To add a new channel, add its ID here and fill in the config arrays below.
-ALL_CHANNELS=(telegram discord whatsapp)
-
-declare -A CHANNEL_DISPLAY=(
-    [telegram]="Telegram"
-    [discord]="Discord"
-    [whatsapp]="WhatsApp"
-)
-declare -A CHANNEL_TOKEN_KEY=(
-    [discord]="discord_bot_token"
-    [telegram]="telegram_bot_token"
-)
-declare -A CHANNEL_TOKEN_PROMPT=(
-    [discord]="Enter your Discord bot token:"
-    [telegram]="Enter your Telegram bot token:"
-)
-declare -A CHANNEL_TOKEN_HELP=(
-    [discord]="(Get one at: https://discord.com/developers/applications)"
-    [telegram]="(Create a bot via @BotFather on Telegram to get a token)"
-)
-
-# Channel selection - simple checklist
-echo "Which messaging channels (Telegram, Discord, WhatsApp) do you want to enable?"
+# --- Discord bot token ---
+echo "Enter your Discord bot token:"
+echo -e "${YELLOW}(Get one at: https://discord.com/developers/applications)${NC}"
 echo ""
+read -rp "Token: " DISCORD_TOKEN
 
-ENABLED_CHANNELS=()
-for ch in "${ALL_CHANNELS[@]}"; do
-    read -rp "  Enable ${CHANNEL_DISPLAY[$ch]}? [y/N]: " choice
-    if [[ "$choice" =~ ^[yY] ]]; then
-        ENABLED_CHANNELS+=("$ch")
-        echo -e "    ${GREEN}✓ ${CHANNEL_DISPLAY[$ch]} enabled${NC}"
-    fi
-done
-echo ""
-
-if [ ${#ENABLED_CHANNELS[@]} -eq 0 ]; then
-    echo -e "${RED}No channels selected. At least one channel is required.${NC}"
+if [ -z "$DISCORD_TOKEN" ]; then
+    echo -e "${RED}Discord bot token is required${NC}"
     exit 1
 fi
-
-# Collect tokens for channels that need them
-declare -A TOKENS
-for ch in "${ENABLED_CHANNELS[@]}"; do
-    token_key="${CHANNEL_TOKEN_KEY[$ch]:-}"
-    if [ -n "$token_key" ]; then
-        echo "${CHANNEL_TOKEN_PROMPT[$ch]}"
-        echo -e "${YELLOW}${CHANNEL_TOKEN_HELP[$ch]}${NC}"
-        echo ""
-        read -rp "Token: " token_value
-
-        if [ -z "$token_value" ]; then
-            echo -e "${RED}${CHANNEL_DISPLAY[$ch]} bot token is required${NC}"
-            exit 1
-        fi
-        TOKENS[$ch]="$token_value"
-        echo -e "${GREEN}✓ ${CHANNEL_DISPLAY[$ch]} token saved${NC}"
-        echo ""
-    fi
-done
+echo -e "${GREEN}✓ Discord token saved${NC}"
+echo ""
 
 # Provider selection
 echo "Which AI provider?"
@@ -136,6 +88,18 @@ else
     echo -e "${GREEN}✓ Model: $MODEL${NC}"
     echo ""
 fi
+
+# --- Discord admin user ID for tool approvals ---
+echo "Enter your Discord user ID for tool approvals:"
+echo -e "${YELLOW}(Right-click your name in Discord → Copy User ID. Enable Developer Mode in Discord settings if needed.)${NC}"
+echo ""
+read -rp "Discord user ID [optional]: " ADMIN_USER_ID
+if [ -n "$ADMIN_USER_ID" ]; then
+    echo -e "${GREEN}✓ Admin user ID saved${NC}"
+else
+    echo -e "${YELLOW}⚠ Skipped — interactive tool approvals will not be available${NC}"
+fi
+echo ""
 
 # Heartbeat interval
 echo "Heartbeat interval (seconds)?"
@@ -252,26 +216,17 @@ fi
 
 AGENTS_JSON="$AGENTS_JSON },"
 
-# Build enabled channels array JSON
-CHANNELS_JSON="["
-for i in "${!ENABLED_CHANNELS[@]}"; do
-    if [ $i -gt 0 ]; then
-        CHANNELS_JSON="${CHANNELS_JSON}, "
-    fi
-    CHANNELS_JSON="${CHANNELS_JSON}\"${ENABLED_CHANNELS[$i]}\""
-done
-CHANNELS_JSON="${CHANNELS_JSON}]"
-
-# Build channel configs with tokens
-DISCORD_TOKEN="${TOKENS[discord]:-}"
-TELEGRAM_TOKEN="${TOKENS[telegram]:-}"
-
 # Write settings.json with layered structure
-# Use jq to build valid JSON to avoid escaping issues with agent prompts
 if [ "$PROVIDER" = "anthropic" ]; then
     MODELS_SECTION='"models": { "provider": "anthropic", "anthropic": { "model": "'"${MODEL}"'" } }'
 else
     MODELS_SECTION='"models": { "provider": "openai", "openai": { "model": "'"${MODEL}"'" } }'
+fi
+
+# Build optional admin_user_id line
+ADMIN_LINE=""
+if [ -n "$ADMIN_USER_ID" ]; then
+    ADMIN_LINE="\"admin_user_id\": \"${ADMIN_USER_ID}\","
 fi
 
 cat > "$SETTINGS_FILE" <<EOF
@@ -281,17 +236,18 @@ cat > "$SETTINGS_FILE" <<EOF
     "name": "${WORKSPACE_NAME}"
   },
   "channels": {
-    "enabled": ${CHANNELS_JSON},
+    "enabled": ["discord"],
     "discord": {
       "bot_token": "${DISCORD_TOKEN}"
-    },
-    "telegram": {
-      "bot_token": "${TELEGRAM_TOKEN}"
-    },
-    "whatsapp": {}
+    }
   },
+  ${ADMIN_LINE}
   ${AGENTS_JSON}
   ${MODELS_SECTION},
+  "permissions": {
+    "allowedTools": ["Read", "Grep", "Glob", "Write", "Edit"],
+    "deniedTools": []
+  },
   "monitoring": {
     "heartbeat_interval": ${HEARTBEAT_INTERVAL}
   }

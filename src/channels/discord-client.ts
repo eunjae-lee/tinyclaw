@@ -5,7 +5,10 @@
  * Does NOT call Claude directly - that's handled by queue-processor
  */
 
-import { Client, Events, GatewayIntentBits, Partials, Message, DMChannel, AttachmentBuilder } from 'discord.js';
+import {
+    Client, Events, GatewayIntentBits, Partials, Message, DMChannel, AttachmentBuilder,
+    ButtonBuilder, ActionRowBuilder, ButtonStyle, ButtonInteraction,
+} from 'discord.js';
 import 'dotenv/config';
 import fs from 'fs';
 import path from 'path';
@@ -22,9 +25,11 @@ const QUEUE_OUTGOING = path.join(TINYCLAW_HOME, 'queue/outgoing');
 const LOG_FILE = path.join(TINYCLAW_HOME, 'logs/discord.log');
 const SETTINGS_FILE = path.join(TINYCLAW_HOME, 'settings.json');
 const FILES_DIR = path.join(TINYCLAW_HOME, 'files');
+const APPROVALS_PENDING = path.join(TINYCLAW_HOME, 'approvals/pending');
+const APPROVALS_DECISIONS = path.join(TINYCLAW_HOME, 'approvals/decisions');
 
 // Ensure directories exist
-[QUEUE_INCOMING, QUEUE_OUTGOING, path.dirname(LOG_FILE), FILES_DIR].forEach(dir => {
+[QUEUE_INCOMING, QUEUE_OUTGOING, path.dirname(LOG_FILE), FILES_DIR, APPROVALS_PENDING, APPROVALS_DECISIONS].forEach(dir => {
     if (!fs.existsSync(dir)) {
         fs.mkdirSync(dir, { recursive: true });
     }
@@ -428,6 +433,191 @@ setInterval(() => {
         });
     }
 }, 8000);
+
+// --- Tool Approval System ---
+
+interface PendingApproval {
+    request_id: string;
+    tool_name: string;
+    tool_input_summary: string;
+    agent_id: string;
+    timestamp: number;
+    notified: boolean;
+}
+
+// Track which approval requests we've already sent DMs for
+const notifiedApprovals = new Set<string>();
+
+function getAdminUserId(): string | null {
+    try {
+        const settingsData = fs.readFileSync(SETTINGS_FILE, 'utf8');
+        const settings = JSON.parse(settingsData);
+        return settings.admin_user_id || null;
+    } catch {
+        return null;
+    }
+}
+
+// Poll for pending approval requests and send Discord DMs
+async function checkPendingApprovals(): Promise<void> {
+    const adminUserId = getAdminUserId();
+    if (!adminUserId) return;
+
+    let files: string[];
+    try {
+        files = fs.readdirSync(APPROVALS_PENDING).filter(f => f.endsWith('.json'));
+    } catch {
+        return;
+    }
+
+    for (const file of files) {
+        const filePath = path.join(APPROVALS_PENDING, file);
+        let approval: PendingApproval;
+
+        try {
+            approval = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+        } catch {
+            continue;
+        }
+
+        const requestId = approval.request_id;
+
+        // Skip if already notified
+        if (notifiedApprovals.has(requestId) || approval.notified) {
+            continue;
+        }
+
+        try {
+            // Fetch admin user and send DM
+            const adminUser = await client.users.fetch(adminUserId);
+
+            // Truncate tool input summary for display
+            let inputDisplay = approval.tool_input_summary || '{}';
+            if (inputDisplay.length > 300) {
+                inputDisplay = inputDisplay.substring(0, 297) + '...';
+            }
+
+            const allowBtn = new ButtonBuilder()
+                .setCustomId(`approve_${requestId}`)
+                .setLabel('Allow this time')
+                .setStyle(ButtonStyle.Primary);
+
+            const alwaysBtn = new ButtonBuilder()
+                .setCustomId(`always_${requestId}`)
+                .setLabel('Always allow')
+                .setStyle(ButtonStyle.Success);
+
+            const denyBtn = new ButtonBuilder()
+                .setCustomId(`deny_${requestId}`)
+                .setLabel('Deny')
+                .setStyle(ButtonStyle.Danger);
+
+            const row = new ActionRowBuilder<ButtonBuilder>().addComponents(allowBtn, alwaysBtn, denyBtn);
+
+            await adminUser.send({
+                content: `**Tool approval needed**\nAgent \`${approval.agent_id}\` wants to use **${approval.tool_name}**\n\`\`\`\n${inputDisplay}\n\`\`\``,
+                components: [row],
+            });
+
+            // Mark as notified (update file and in-memory set)
+            notifiedApprovals.add(requestId);
+            approval.notified = true;
+            fs.writeFileSync(filePath, JSON.stringify(approval, null, 2));
+
+            log('INFO', `Sent approval request to admin for ${approval.tool_name} (${requestId})`);
+        } catch (err) {
+            log('ERROR', `Failed to send approval DM: ${(err as Error).message}`);
+        }
+    }
+}
+
+// Handle button interactions for approval decisions
+client.on(Events.InteractionCreate, async (interaction) => {
+    if (!interaction.isButton()) return;
+
+    const buttonInteraction = interaction as ButtonInteraction;
+    const customId = buttonInteraction.customId;
+
+    // Parse action and request_id from customId
+    let action: string;
+    let requestId: string;
+
+    if (customId.startsWith('approve_')) {
+        action = 'allow';
+        requestId = customId.substring('approve_'.length);
+    } else if (customId.startsWith('always_')) {
+        action = 'always_allow';
+        requestId = customId.substring('always_'.length);
+    } else if (customId.startsWith('deny_')) {
+        action = 'deny';
+        requestId = customId.substring('deny_'.length);
+    } else {
+        return; // Not an approval button
+    }
+
+    // Read pending file to get tool_name (for always_allow)
+    let toolName = '';
+    const pendingFile = path.join(APPROVALS_PENDING, `${requestId}.json`);
+    try {
+        const pending: PendingApproval = JSON.parse(fs.readFileSync(pendingFile, 'utf8'));
+        toolName = pending.tool_name;
+    } catch {
+        // Pending file may already be cleaned up
+    }
+
+    // Write decision file
+    const decisionFile = path.join(APPROVALS_DECISIONS, `${requestId}.json`);
+    const decision: Record<string, string> = { decision: action };
+    if (action === 'always_allow' && toolName) {
+        decision.tool_name = toolName;
+    }
+
+    try {
+        fs.writeFileSync(decisionFile, JSON.stringify(decision, null, 2));
+    } catch (err) {
+        log('ERROR', `Failed to write decision file: ${(err as Error).message}`);
+        await buttonInteraction.reply({ content: 'Error writing decision. Please try again.', ephemeral: true });
+        return;
+    }
+
+    // Reply to interaction and disable buttons
+    let replyText: string;
+    switch (action) {
+        case 'allow':
+            replyText = 'Approved (this time)';
+            break;
+        case 'always_allow':
+            replyText = `Always allowed \`${toolName}\``;
+            break;
+        case 'deny':
+            replyText = 'Denied';
+            break;
+        default:
+            replyText = 'Done';
+    }
+
+    try {
+        await buttonInteraction.update({
+            content: `${buttonInteraction.message.content}\n\n**Decision:** ${replyText}`,
+            components: [], // Remove buttons
+        });
+    } catch (err) {
+        // Fallback: reply if update fails
+        try {
+            await buttonInteraction.reply({ content: replyText, ephemeral: true });
+        } catch {
+            // Ignore
+        }
+    }
+
+    // Clean up tracking
+    notifiedApprovals.delete(requestId);
+
+    log('INFO', `Approval decision for ${requestId}: ${action}`);
+});
+
+// Check pending approvals every second
+setInterval(checkPendingApprovals, 1000);
 
 // Graceful shutdown
 process.on('SIGINT', () => {

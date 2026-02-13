@@ -1,15 +1,16 @@
 import { spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
-import { AgentConfig, TeamConfig } from './types';
-import { SCRIPT_DIR, resolveClaudeModel, resolveCodexModel } from './config';
+import { AgentConfig, TeamConfig, Settings } from './types';
+import { SCRIPT_DIR, TINYCLAW_HOME, resolveClaudeModel, resolveCodexModel, getSettings, resolvePermissions } from './config';
 import { log } from './logging';
 import { ensureAgentDirectory, updateAgentTeammates } from './agent-setup';
 
-export async function runCommand(command: string, args: string[], cwd?: string): Promise<string> {
+export async function runCommand(command: string, args: string[], cwd?: string, env?: Record<string, string>): Promise<string> {
     return new Promise((resolve, reject) => {
         const child = spawn(command, args, {
             cwd: cwd || SCRIPT_DIR,
+            env: env ? { ...process.env, ...env } : undefined,
             stdio: ['ignore', 'pipe', 'pipe'],
         });
 
@@ -123,7 +124,13 @@ export async function invokeAgent(
         }
 
         const modelId = resolveClaudeModel(agent.model);
-        const claudeArgs = ['--dangerously-skip-permissions'];
+        const settings = getSettings();
+        const permissions = resolvePermissions(settings, agentId);
+
+        const claudeArgs: string[] = [];
+        if (permissions.allowedTools && permissions.allowedTools.length > 0) {
+            claudeArgs.push('--allowedTools', permissions.allowedTools.join(','));
+        }
         if (modelId) {
             claudeArgs.push('--model', modelId);
         }
@@ -132,6 +139,9 @@ export async function invokeAgent(
         }
         claudeArgs.push('-p', message);
 
-        return await runCommand('claude', claudeArgs, workingDir);
+        return await runCommand('claude', claudeArgs, workingDir, {
+            TINYCLAW_AGENT_ID: agentId,
+            TINYCLAW_HOME,
+        });
     }
 }

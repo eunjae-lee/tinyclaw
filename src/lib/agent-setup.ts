@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { AgentConfig, TeamConfig } from './types';
-import { SCRIPT_DIR } from './config';
+import { SCRIPT_DIR, APPROVALS_DIR, APPROVALS_PENDING, APPROVALS_DECISIONS } from './config';
 
 /**
  * Recursively copy directory
@@ -69,6 +69,60 @@ export function ensureAgentDirectory(agentDir: string): void {
     if (fs.existsSync(sourceSoul)) {
         fs.copyFileSync(sourceSoul, path.join(targetTinyclaw, 'SOUL.md'));
     }
+
+    // Configure approval hook
+    configureApprovalHook(agentDir);
+}
+
+/**
+ * Configure the PreToolUse approval hook in the agent's .claude/settings.json.
+ * Ensures the approval-hook.sh is registered as a hook for all tool uses.
+ * Also ensures the approvals directories exist.
+ */
+export function configureApprovalHook(agentDir: string): void {
+    // Ensure approvals directories exist
+    [APPROVALS_DIR, APPROVALS_PENDING, APPROVALS_DECISIONS].forEach(dir => {
+        if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true });
+        }
+    });
+
+    const hookScript = path.join(SCRIPT_DIR, 'lib', 'approval-hook.sh');
+    if (!fs.existsSync(hookScript)) {
+        return; // Hook script not present, skip configuration
+    }
+
+    const claudeSettingsDir = path.join(agentDir, '.claude');
+    const claudeSettingsFile = path.join(claudeSettingsDir, 'settings.json');
+
+    // Read existing settings or start fresh
+    let settings: Record<string, any> = {};
+    if (fs.existsSync(claudeSettingsFile)) {
+        try {
+            settings = JSON.parse(fs.readFileSync(claudeSettingsFile, 'utf8'));
+        } catch {
+            settings = {};
+        }
+    }
+
+    // Add hooks config (preserve other fields)
+    settings.hooks = {
+        PreToolUse: [
+            {
+                matcher: '.*',
+                hooks: [
+                    {
+                        type: 'command',
+                        command: hookScript,
+                        timeout: 600,
+                    },
+                ],
+            },
+        ],
+    };
+
+    fs.mkdirSync(claudeSettingsDir, { recursive: true });
+    fs.writeFileSync(claudeSettingsFile, JSON.stringify(settings, null, 2));
 }
 
 /**

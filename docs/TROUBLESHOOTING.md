@@ -265,6 +265,111 @@ If new agents don't have `.claude/`, `heartbeat.md`, or `AGENTS.md`:
    cp AGENTS.md ~/.tinyclaw/
    ```
 
+## Tool Approval Issues
+
+### Not receiving approval DMs
+
+If the Discord bot isn't sending approval requests:
+
+1. **Check admin user ID is set:**
+   ```bash
+   cat .tinyclaw/settings.json | jq '.admin_user_id'
+   ```
+
+2. **Verify it's a valid Discord user ID:**
+   - Open Discord Settings → Advanced → Enable "Developer Mode"
+   - Right-click your username → "Copy User ID"
+   - Update settings: edit `.tinyclaw/settings.json`
+
+3. **Check the bot can DM you:**
+   - Make sure you share a server with the bot
+   - Check your Discord privacy settings allow DMs from server members
+
+4. **Check approvals directories exist:**
+   ```bash
+   ls ~/.tinyclaw/approvals/pending/
+   ls ~/.tinyclaw/approvals/decisions/
+   ```
+
+5. **Check Discord logs:**
+   ```bash
+   tinyclaw logs discord | grep -i approval
+   ```
+
+### Approval always timing out
+
+If tools are always denied due to timeout:
+
+1. **Increase timeout** in settings:
+   ```json
+   {
+     "approvals": {
+       "timeout": 600
+     }
+   }
+   ```
+
+2. **Check pending files are being created:**
+   ```bash
+   ls ~/.tinyclaw/approvals/pending/
+   ```
+
+3. **Check Discord client is running:**
+   ```bash
+   tinyclaw status
+   ```
+
+### "Always allow" not persisting
+
+If clicking "Always allow" doesn't add the tool permanently:
+
+1. **Check settings.json is writable:**
+   ```bash
+   ls -la ~/.tinyclaw/settings.json
+   ```
+
+2. **Verify `jq` is installed** (required by the hook script):
+   ```bash
+   which jq
+   # Install if missing:
+   brew install jq     # macOS
+   sudo apt install jq # Ubuntu/Debian
+   ```
+
+3. **Check the tool was added:**
+   ```bash
+   cat .tinyclaw/settings.json | jq '.permissions.allowedTools'
+   ```
+
+### Hook script not running
+
+If tools are being approved without prompting:
+
+1. **Check hook is configured in agent's settings:**
+   ```bash
+   cat ~/tinyclaw-workspace/coder/.claude/settings.json | jq '.hooks'
+   ```
+
+2. **Verify hook script exists and is executable:**
+   ```bash
+   ls -la lib/approval-hook.sh
+   ```
+
+3. **Check no allowedTools are configured** (if empty, all tools are allowed by default):
+   ```bash
+   cat .tinyclaw/settings.json | jq '.permissions.allowedTools'
+   ```
+
+### Stale pending approvals
+
+If old approval files are accumulating:
+
+```bash
+# Clear all pending approvals
+rm -f ~/.tinyclaw/approvals/pending/*.json
+rm -f ~/.tinyclaw/approvals/decisions/*.json
+```
+
 ## Update Issues
 
 ### Update check failing

@@ -12,6 +12,7 @@ Run multiple AI agents simultaneously with isolated workspaces and conversation 
 - ✅ **Multi-channel** - Discord, WhatsApp, and Telegram
 - ✅ **Parallel processing** - Agents process messages concurrently
 - ✅ **Live TUI dashboard** - Real-time team visualizer for monitoring agent chains
+- ✅ **Interactive tool approvals** - Approve/deny agent tool use via Discord buttons
 - ✅ **Persistent sessions** - Conversation context maintained across restarts
 - ✅ **File-based queue** - No race conditions, reliable message handling
 - ✅ **24/7 operation** - Runs in tmux for always-on availability
@@ -64,7 +65,8 @@ The setup wizard will guide you through:
 4. **Default agent** - Configure your main AI assistant
 5. **AI provider** - Select Anthropic (Claude) or OpenAI
 6. **Model selection** - Choose model (e.g., Sonnet, Opus, GPT-5.3)
-7. **Heartbeat interval** - Set proactive check-in frequency
+7. **Admin user ID** - Discord user ID for interactive tool approvals (optional)
+8. **Heartbeat interval** - Set proactive check-in frequency
 
 <details>
 <summary><b>📱 Channel Setup Guides</b></summary>
@@ -261,6 +263,28 @@ See [docs/AGENTS.md](docs/AGENTS.md) for:
 
 </details>
 
+## 🔐 Tool Approvals
+
+When an agent attempts to use a tool not in its pre-approved `allowedTools` list, TinyClaw sends an interactive approval request to the admin via Discord DM.
+
+**Three options per request:**
+- **Allow this time** — approve for this invocation only
+- **Always allow** — persist the tool to `settings.json` allowedTools
+- **Deny** — reject the tool use
+
+**Setup:**
+1. Set your Discord user ID during setup (or add `"admin_user_id"` to settings.json)
+2. Configure `allowedTools` in `permissions` (global or per-agent)
+3. When an agent tries an unapproved tool, you'll get a Discord DM with buttons
+
+**How it works:**
+- A `PreToolUse` hook script checks each tool against the allowedTools list
+- Unapproved tools trigger a file-based approval request
+- The Discord client polls for pending requests and sends interactive button messages
+- The hook blocks until you respond (or the timeout expires, default 300s)
+
+See [docs/AGENTS.md](docs/AGENTS.md) for detailed configuration.
+
 ## 📐 Architecture
 
 ```
@@ -326,6 +350,9 @@ tinyclaw/
 │   │   ├── incoming/
 │   │   ├── processing/
 │   │   └── outgoing/
+│   ├── approvals/        # Tool approval IPC
+│   │   ├── pending/      # Hook writes, Discord reads
+│   │   └── decisions/    # Discord writes, hook reads
 │   ├── logs/             # All logs
 │   ├── channels/         # Channel state
 │   ├── files/            # Uploaded files
@@ -363,6 +390,7 @@ Located at `.tinyclaw/settings.json`:
     "telegram": { "bot_token": "..." },
     "whatsapp": {}
   },
+  "admin_user_id": "123456789012345678",
   "workspace": {
     "path": "/Users/me/tinyclaw-workspace",
     "name": "tinyclaw-workspace"
@@ -381,6 +409,13 @@ Located at `.tinyclaw/settings.json`:
       "agents": ["coder", "reviewer"],
       "leader_agent": "coder"
     }
+  },
+  "permissions": {
+    "allowedTools": ["Read", "Grep", "Glob", "Write", "Edit"],
+    "deniedTools": []
+  },
+  "approvals": {
+    "timeout": 300
   },
   "monitoring": {
     "heartbeat_interval": 3600

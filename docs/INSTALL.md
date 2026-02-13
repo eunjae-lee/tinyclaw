@@ -131,7 +131,8 @@ You'll configure:
 1. **Channel** - Discord, WhatsApp, or both
 2. **Discord bot token** (if using Discord)
 3. **Claude model** - Sonnet (fast) or Opus (smart)
-4. **Heartbeat interval** - How often Claude checks in
+4. **Admin user ID** - Your Discord user ID for interactive tool approvals (optional)
+5. **Heartbeat interval** - How often Claude checks in
 
 Follow the prompts and you're ready!
 

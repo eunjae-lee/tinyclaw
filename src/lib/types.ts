@@ -1,8 +1,14 @@
+export interface PermissionConfig {
+    allowedTools?: string[];   // e.g. ["Read", "Grep", "Glob", "Write", "Edit"]
+    deniedTools?: string[];    // explicit deny (takes precedence over allowed)
+}
+
 export interface AgentConfig {
     name: string;
     provider: string;       // 'anthropic' or 'openai'
     model: string;           // e.g. 'sonnet', 'opus', 'gpt-5.3-codex'
     working_directory: string;
+    permissions?: PermissionConfig;
 }
 
 export interface TeamConfig {
@@ -24,8 +30,6 @@ export interface Settings {
     channels?: {
         enabled?: string[];
         discord?: { bot_token?: string };
-        telegram?: { bot_token?: string };
-        whatsapp?: {};
     };
     models?: {
         provider?: string; // 'anthropic' or 'openai'
@@ -38,6 +42,11 @@ export interface Settings {
     };
     agents?: Record<string, AgentConfig>;
     teams?: Record<string, TeamConfig>;
+    permissions?: PermissionConfig;
+    admin_user_id?: string;  // Discord user ID for approval requests
+    approvals?: {
+        timeout?: number;      // seconds to wait for approval (default: 300)
+    };
     monitoring?: {
         heartbeat_interval?: number;
     };

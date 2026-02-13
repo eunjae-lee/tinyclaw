@@ -31,30 +31,22 @@ NC='\033[0m'
 # --- Channel registry ---
 # Single source of truth. Add new channels here and everything else adapts.
 
-ALL_CHANNELS=(discord whatsapp telegram)
+ALL_CHANNELS=(discord)
 
 declare -A CHANNEL_DISPLAY=(
     [discord]="Discord"
-    [whatsapp]="WhatsApp"
-    [telegram]="Telegram"
 )
 declare -A CHANNEL_SCRIPT=(
     [discord]="dist/channels/discord-client.js"
-    [whatsapp]="dist/channels/whatsapp-client.js"
-    [telegram]="dist/channels/telegram-client.js"
 )
 declare -A CHANNEL_ALIAS=(
     [discord]="dc"
-    [whatsapp]="wa"
-    [telegram]="tg"
 )
 declare -A CHANNEL_TOKEN_KEY=(
     [discord]="discord_bot_token"
-    [telegram]="telegram_bot_token"
 )
 declare -A CHANNEL_TOKEN_ENV=(
     [discord]="DISCORD_BOT_TOKEN"
-    [telegram]="TELEGRAM_BOT_TOKEN"
 )
 
 # Runtime state: filled by load_settings

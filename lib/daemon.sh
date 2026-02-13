@@ -109,9 +109,7 @@ start_daemon() {
 
     # Assign channel panes
     local pane_idx=0
-    local whatsapp_pane=-1
     for ch in "${ACTIVE_CHANNELS[@]}"; do
-        [ "$ch" = "whatsapp" ] && whatsapp_pane=$pane_idx
         tmux send-keys -t "$TMUX_SESSION:0.$pane_idx" "cd '$SCRIPT_DIR' && node ${CHANNEL_SCRIPT[$ch]}" C-m
         tmux select-pane -t "$TMUX_SESSION:0.$pane_idx" -T "${CHANNEL_DISPLAY[$ch]}"
         pane_idx=$((pane_idx + 1))
@@ -134,70 +132,6 @@ start_daemon() {
     echo ""
     echo -e "${GREEN}✓ TinyClaw started${NC}"
     echo ""
-
-    # WhatsApp QR code flow — only when WhatsApp is being started
-    if [ "$whatsapp_pane" -ge 0 ]; then
-        echo -e "${YELLOW}Starting WhatsApp client...${NC}"
-        echo ""
-
-        QR_FILE="$SCRIPT_DIR/.tinyclaw/channels/whatsapp_qr.txt"
-        READY_FILE="$SCRIPT_DIR/.tinyclaw/channels/whatsapp_ready"
-        QR_DISPLAYED=false
-
-        for i in {1..60}; do
-            sleep 1
-
-            if [ -f "$READY_FILE" ]; then
-                echo ""
-                echo -e "${GREEN}WhatsApp connected and ready!${NC}"
-                rm -f "$QR_FILE"
-                break
-            fi
-
-            if [ -f "$QR_FILE" ] && [ "$QR_DISPLAYED" = false ]; then
-                sleep 1
-                clear
-                echo ""
-                echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-                echo -e "${GREEN}                    WhatsApp QR Code${NC}"
-                echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-                echo ""
-                cat "$QR_FILE"
-                echo ""
-                echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-                echo ""
-                echo -e "${YELLOW}Scan this QR code with WhatsApp:${NC}"
-                echo ""
-                echo "   1. Open WhatsApp on your phone"
-                echo "   2. Go to Settings -> Linked Devices"
-                echo "   3. Tap 'Link a Device'"
-                echo "   4. Scan the QR code above"
-                echo ""
-                echo -e "${BLUE}Waiting for connection...${NC}"
-                QR_DISPLAYED=true
-            fi
-
-            if [ "$QR_DISPLAYED" = true ] || [ $i -gt 10 ]; then
-                echo -n "."
-            fi
-        done
-        echo ""
-
-        if [ $i -eq 60 ] && [ ! -f "$READY_FILE" ]; then
-            echo ""
-            echo -e "${RED}WhatsApp didn't connect within 60 seconds${NC}"
-            echo ""
-            echo -e "${YELLOW}Try restarting TinyClaw:${NC}"
-            echo -e "  ${GREEN}./tinyclaw.sh restart${NC}"
-            echo ""
-            echo "Or check WhatsApp client status:"
-            echo -e "  ${GREEN}tmux attach -t $TMUX_SESSION${NC}"
-            echo ""
-            echo "Or check logs:"
-            echo -e "  ${GREEN}./tinyclaw.sh logs whatsapp${NC}"
-            echo ""
-        fi
-    fi
 
     # Build channel names for help line
     local channel_names
@@ -271,8 +205,6 @@ status_daemon() {
     echo ""
 
     # Channel process status
-    local ready_file="$SCRIPT_DIR/.tinyclaw/channels/whatsapp_ready"
-
     for ch in "${ALL_CHANNELS[@]}"; do
         local display="${CHANNEL_DISPLAY[$ch]}"
         local script="${CHANNEL_SCRIPT[$ch]}"
@@ -281,13 +213,7 @@ status_daemon() {
         while [ $((${#display} + ${#pad})) -lt 16 ]; do pad="$pad "; done
 
         if pgrep -f "$script" > /dev/null; then
-            if [ "$ch" = "whatsapp" ] && [ -f "$ready_file" ]; then
-                echo -e "${display}:${pad}${GREEN}Running & Ready${NC}"
-            elif [ "$ch" = "whatsapp" ]; then
-                echo -e "${display}:${pad}${YELLOW}Running (not ready yet)${NC}"
-            else
-                echo -e "${display}:${pad}${GREEN}Running${NC}"
-            fi
+            echo -e "${display}:${pad}${GREEN}Running${NC}"
         else
             echo -e "${display}:${pad}${RED}Not Running${NC}"
         fi
