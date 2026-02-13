@@ -20,6 +20,7 @@ import {
     TINYCLAW_CONFIG_HOME, QUEUE_INCOMING, QUEUE_OUTGOING,
     SETTINGS_FILE, APPROVALS_PENDING, APPROVALS_DECISIONS, RESET_FLAG
 } from '../lib/config';
+import { extractAgentPrefix } from '../lib/routing';
 
 const LOG_FILE = path.join(TINYCLAW_CONFIG_HOME, 'logs/discord.log');
 const FILES_DIR = path.join(TINYCLAW_CONFIG_HOME, 'files');
@@ -53,6 +54,7 @@ interface QueueData {
     timestamp: number;
     messageId: string;
     files?: string[];
+    agent?: string;
 }
 
 interface ResponseData {
@@ -116,7 +118,8 @@ const pendingMessages = new Map<string, PendingMessage>();
 let processingOutgoingQueue = false;
 
 // Track threads created by the bot (lost on restart — users can re-trigger with @mention)
-const botOwnedThreads = new Set<string>();
+// Maps thread ID → agent ID extracted from the starter message (or undefined for default agent)
+const botOwnedThreads = new Map<string, string | undefined>();
 
 // Read allowed channel IDs from settings (re-reads each call so changes don't require restart)
 function getAllowedChannels(): string[] {
@@ -275,7 +278,7 @@ client.on(Events.MessageCreate, async (message: Message) => {
                 try {
                     const starterMessage = await thread.fetchStarterMessage();
                     if (starterMessage?.author.id === client.user!.id) {
-                        botOwnedThreads.add(thread.id);
+                        botOwnedThreads.set(thread.id, extractAgentPrefix(starterMessage?.content || ''));
                     } else {
                         return;
                     }
@@ -285,7 +288,9 @@ client.on(Events.MessageCreate, async (message: Message) => {
             }
 
             // Once we get here, auto-track so future messages don't re-fetch
-            botOwnedThreads.add(thread.id);
+            if (!botOwnedThreads.has(thread.id)) {
+                botOwnedThreads.set(thread.id, undefined);
+            }
             replyChannel = thread;
         } else {
             // Server channel message — check allowlist or @mention
@@ -379,6 +384,12 @@ client.on(Events.MessageCreate, async (message: Message) => {
             fullMessage = fullMessage ? `${fullMessage}\n\n${fileRefs}` : fileRefs;
         }
 
+        // Look up agent routing for thread messages
+        const threadAgent = (message.channel.type === ChannelType.PublicThread ||
+                             message.channel.type === ChannelType.PrivateThread)
+            ? botOwnedThreads.get(message.channel.id)
+            : undefined;
+
         // Write to incoming queue
         const queueData: QueueData = {
             channel: 'discord',
@@ -388,6 +399,7 @@ client.on(Events.MessageCreate, async (message: Message) => {
             timestamp: Date.now(),
             messageId: messageId,
             files: downloadedFiles.length > 0 ? downloadedFiles : undefined,
+            agent: threadAgent,
         };
 
         const queueFile = path.join(QUEUE_INCOMING, `discord_${messageId}.json`);
@@ -449,7 +461,7 @@ async function checkOutgoingQueue(): Promise<void> {
                                 name: threadName,
                                 autoArchiveDuration: 1440,
                             });
-                            botOwnedThreads.add(thread.id);
+                            botOwnedThreads.set(thread.id, responseData.agent);
                             targetChannel = thread;
                         } catch (threadErr) {
                             log('WARN', `Failed to create thread, falling back to channel reply: ${(threadErr as Error).message}`);
@@ -561,7 +573,7 @@ client.on(Events.ThreadCreate, async (thread) => {
     try {
         const starterMessage = await thread.fetchStarterMessage();
         if (starterMessage?.author.id === client.user?.id) {
-            botOwnedThreads.add(thread.id);
+            botOwnedThreads.set(thread.id, extractAgentPrefix(starterMessage?.content || ''));
             log('INFO', `Auto-tracked thread ${thread.id} (created on bot message)`);
         }
     } catch {

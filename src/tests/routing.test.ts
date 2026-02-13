@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseAgentRouting, findTeamForAgent, isTeammate, extractTeammateMentions } from '../lib/routing';
+import { parseAgentRouting, findTeamForAgent, isTeammate, extractTeammateMentions, extractAgentPrefix } from '../lib/routing';
 import type { AgentConfig, TeamConfig } from '../lib/types';
 
 const agents: Record<string, AgentConfig> = {
@@ -108,5 +108,40 @@ describe('extractTeammateMentions', () => {
         const response = 'Hey @writer can you help?';
         const results = extractTeammateMentions(response, 'coder', 'devteam', teams, agents);
         expect(results).toHaveLength(0);
+    });
+});
+
+describe('extractAgentPrefix', () => {
+    it('extracts agent id from !agent prefix', () => {
+        expect(extractAgentPrefix('!tc where is the bug')).toBe('tc');
+    });
+
+    it('lowercases the agent id', () => {
+        expect(extractAgentPrefix('!MyAgent do something')).toBe('myagent');
+    });
+
+    it('returns undefined for messages without ! prefix', () => {
+        expect(extractAgentPrefix('hello world')).toBeUndefined();
+    });
+
+    it('returns undefined for empty string', () => {
+        expect(extractAgentPrefix('')).toBeUndefined();
+    });
+
+    it('returns undefined for ! with no space after agent id', () => {
+        expect(extractAgentPrefix('!agentonly')).toBeUndefined();
+    });
+
+    it('handles multi-word messages after prefix', () => {
+        expect(extractAgentPrefix('!coder fix the bug in auth module')).toBe('coder');
+    });
+
+    it('returns undefined for messages starting with other special chars', () => {
+        expect(extractAgentPrefix('/agent do something')).toBeUndefined();
+        expect(extractAgentPrefix('@agent do something')).toBeUndefined();
+    });
+
+    it('returns undefined for ! followed by space only', () => {
+        expect(extractAgentPrefix('! something')).toBeUndefined();
     });
 });

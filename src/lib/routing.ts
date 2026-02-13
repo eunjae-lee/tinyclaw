@@ -2,6 +2,16 @@ import path from 'path';
 import { AgentConfig, TeamConfig } from './types';
 
 /**
+ * Extract the !agent_id prefix from a raw message string.
+ * Returns the agent ID (lowercased) or undefined if no prefix found.
+ * Unlike parseAgentRouting, this does NOT validate against known agents/teams.
+ */
+export function extractAgentPrefix(text: string): string | undefined {
+    const match = text.match(/^!(\S+)\s+/);
+    return match ? match[1].toLowerCase() : undefined;
+}
+
+/**
  * Find the first team that contains the given agent.
  */
 export function findTeamForAgent(agentId: string, teams: Record<string, TeamConfig>): { teamId: string; team: TeamConfig } | null {
