@@ -24,10 +24,10 @@ describe('configureApprovalHook', () => {
     beforeEach(() => {
         // Create all directories fresh
         fs.mkdirSync(path.join(testAgentDir, '.claude'), { recursive: true });
-        fs.mkdirSync(path.join(FAKE_SCRIPT_DIR, 'lib'), { recursive: true });
+        fs.mkdirSync(path.join(FAKE_SCRIPT_DIR, 'dist', 'lib'), { recursive: true });
         fs.writeFileSync(
-            path.join(FAKE_SCRIPT_DIR, 'lib', 'approval-hook.sh'),
-            '#!/bin/bash\nexit 0'
+            path.join(FAKE_SCRIPT_DIR, 'dist', 'lib', 'approval-hook.js'),
+            '// compiled hook'
         );
     });
 
@@ -49,14 +49,14 @@ describe('configureApprovalHook', () => {
         expect(settings.hooks.PreToolUse[0].hooks[0].timeout).toBe(600);
     });
 
-    it('uses absolute path to approval-hook.sh', () => {
+    it('uses node with absolute path to approval-hook.js', () => {
         configureApprovalHook(testAgentDir);
 
         const settings = JSON.parse(fs.readFileSync(claudeLocalPath, 'utf8'));
-        const command = settings.hooks.PreToolUse[0].hooks[0].command;
+        const command: string = settings.hooks.PreToolUse[0].hooks[0].command;
 
-        expect(path.isAbsolute(command)).toBe(true);
-        expect(command).toContain('approval-hook.sh');
+        expect(command).toMatch(/^node /);
+        expect(command).toContain('approval-hook.js');
     });
 
     it('merges with existing settings without overwriting', () => {
@@ -81,9 +81,9 @@ describe('configureApprovalHook', () => {
         expect(fs.existsSync(path.join(FAKE_APPROVALS_DIR, 'decisions'))).toBe(true);
     });
 
-    it('does nothing when approval-hook.sh does not exist', () => {
+    it('does nothing when approval-hook.js does not exist', () => {
         // Remove the fake hook script
-        fs.unlinkSync(path.join(FAKE_SCRIPT_DIR, 'lib', 'approval-hook.sh'));
+        fs.unlinkSync(path.join(FAKE_SCRIPT_DIR, 'dist', 'lib', 'approval-hook.js'));
 
         // Write existing settings that should not be modified
         fs.writeFileSync(claudeLocalPath, JSON.stringify({ keep: true }, null, 2));

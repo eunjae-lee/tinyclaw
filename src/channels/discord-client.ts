@@ -634,6 +634,7 @@ setInterval(() => {
 interface PendingApproval {
     request_id: string;
     tool_name: string;
+    tool_pattern?: string;
     tool_input_summary: string;
     agent_id: string;
     message_id?: string;
@@ -712,7 +713,8 @@ async function checkPendingApprovals(): Promise<void> {
 
             const row = new ActionRowBuilder<ButtonBuilder>().addComponents(allowBtn, alwaysBtn, alwaysAllBtn, denyBtn);
 
-            const content = `**Tool approval needed**\nAgent \`${approval.agent_id}\` wants to use **${approval.tool_name}**\n\`\`\`\n${inputDisplay}\n\`\`\``;
+            const toolDisplay = approval.tool_pattern || approval.tool_name;
+            const content = `**Tool approval needed**\nAgent \`${approval.agent_id}\` wants to use **${toolDisplay}**\n\`\`\`\n${inputDisplay}\n\`\`\``;
 
             // Try to post in the same thread/channel as the original message
             const pending = approval.message_id ? pendingMessages.get(approval.message_id) : undefined;
@@ -763,12 +765,14 @@ client.on(Events.InteractionCreate, async (interaction) => {
         return; // Not an approval button
     }
 
-    // Read pending file to get tool_name (for always_allow / always_allow_all)
+    // Read pending file to get tool_name/tool_pattern (for always_allow / always_allow_all)
     let toolName = '';
+    let toolPattern = '';
     const pendingFile = path.join(APPROVALS_PENDING, `${requestId}.json`);
     try {
         const pending: PendingApproval = JSON.parse(fs.readFileSync(pendingFile, 'utf8'));
         toolName = pending.tool_name;
+        toolPattern = pending.tool_pattern || pending.tool_name;
     } catch {
         // Pending file may already be cleaned up
     }
@@ -795,10 +799,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
             replyText = 'Approved (this time)';
             break;
         case 'always_allow':
-            replyText = `Always allowed \`${toolName}\` for this agent`;
+            replyText = `Always allowed \`${toolPattern}\` for this agent`;
             break;
         case 'always_allow_all':
-            replyText = `Always allowed \`${toolName}\` globally`;
+            replyText = `Always allowed \`${toolPattern}\` globally`;
             break;
         case 'deny':
             replyText = 'Denied';

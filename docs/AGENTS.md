@@ -252,7 +252,7 @@ Each agent's `.claude/settings.json` is automatically configured with the approv
         "hooks": [
           {
             "type": "command",
-            "command": "/path/to/tinyclaw/lib/approval-hook.sh",
+            "command": "node /path/to/tinyclaw/dist/lib/approval-hook.js",
             "timeout": 600
           }
         ]

@@ -352,7 +352,7 @@ If tools are being approved without prompting:
 
 2. **Verify hook script exists and is executable:**
    ```bash
-   ls -la lib/approval-hook.sh
+   ls -la dist/lib/approval-hook.js
    ```
 
 3. **Check no allowedTools are configured** (if empty, all tools are allowed by default):

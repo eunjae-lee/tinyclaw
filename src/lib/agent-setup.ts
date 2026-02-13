@@ -76,7 +76,7 @@ export function ensureAgentDirectory(agentDir: string): void {
 
 /**
  * Configure the PreToolUse approval hook in the agent's .claude/settings.local.json.
- * Ensures the approval-hook.sh is registered as a hook for all tool uses.
+ * Ensures the approval hook is registered for all tool uses.
  * Uses settings.local.json since the hook path is machine-specific (git-ignored by Claude Code).
  * Also ensures the approvals directories exist.
  */
@@ -88,7 +88,7 @@ export function configureApprovalHook(agentDir: string): void {
         }
     });
 
-    const hookScript = path.join(SCRIPT_DIR, 'lib', 'approval-hook.sh');
+    const hookScript = path.join(SCRIPT_DIR, 'dist', 'lib', 'approval-hook.js');
     if (!fs.existsSync(hookScript)) {
         return; // Hook script not present, skip configuration
     }
@@ -114,7 +114,7 @@ export function configureApprovalHook(agentDir: string): void {
                 hooks: [
                     {
                         type: 'command',
-                        command: hookScript,
+                        command: `node ${hookScript}`,
                         timeout: 600,
                     },
                 ],
