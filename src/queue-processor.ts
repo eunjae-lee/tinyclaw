@@ -40,7 +40,7 @@ async function processMessage(messageFile: string): Promise<void> {
 
         // Read message
         const messageData: MessageData = JSON.parse(fs.readFileSync(processingFile, 'utf8'));
-        const { channel, sender, message: rawMessage, timestamp, messageId } = messageData;
+        const { channel, sender, message: rawMessage, timestamp, messageId, sessionKey } = messageData;
 
         log('INFO', `Processing [${channel}] from ${sender}: ${rawMessage.substring(0, 50)}...`);
         emitEvent('message_received', { channel, sender, message: rawMessage.substring(0, 120), messageId });
@@ -139,7 +139,7 @@ async function processMessage(messageFile: string): Promise<void> {
         if (!teamContext) {
             // No team context — single agent invocation (backward compatible)
             try {
-                finalResponse = await invokeAgent(agent, agentId, message, workspacePath, shouldReset, agents, teams, messageId);
+                finalResponse = await invokeAgent(agent, agentId, message, workspacePath, shouldReset, agents, teams, messageId, sessionKey);
             } catch (error) {
                 const provider = agent.provider || 'anthropic';
                 log('ERROR', `${provider === 'openai' ? 'Codex' : 'Claude'} error (agent: ${agentId}): ${(error as Error).message}`);
@@ -177,7 +177,7 @@ async function processMessage(messageFile: string): Promise<void> {
 
                 let stepResponse: string;
                 try {
-                    stepResponse = await invokeAgent(currentAgent, currentAgentId, currentMessage, workspacePath, currentShouldReset, agents, teams, messageId);
+                    stepResponse = await invokeAgent(currentAgent, currentAgentId, currentMessage, workspacePath, currentShouldReset, agents, teams, messageId, sessionKey);
                 } catch (error) {
                     const provider = currentAgent.provider || 'anthropic';
                     log('ERROR', `${provider === 'openai' ? 'Codex' : 'Claude'} error (agent: ${currentAgentId}): ${(error as Error).message}`);
@@ -237,7 +237,7 @@ async function processMessage(messageFile: string): Promise<void> {
                             let mResponse: string;
                             try {
                                 const mMessage = `[Message from teammate @${currentAgentId}]:\n${mention.message}`;
-                                mResponse = await invokeAgent(mAgent, mention.teammateId, mMessage, workspacePath, mShouldReset, agents, teams, messageId);
+                                mResponse = await invokeAgent(mAgent, mention.teammateId, mMessage, workspacePath, mShouldReset, agents, teams, messageId, sessionKey);
                             } catch (error) {
                                 log('ERROR', `Fan-out error (agent: ${mention.teammateId}): ${(error as Error).message}`);
                                 mResponse = "Sorry, I encountered an error processing this request.";

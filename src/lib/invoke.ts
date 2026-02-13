@@ -1,4 +1,5 @@
 import { spawn } from 'child_process';
+import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { AgentConfig, TeamConfig, Settings } from './types';
@@ -45,6 +46,21 @@ export async function runCommand(command: string, args: string[], cwd?: string, 
 }
 
 /**
+ * Generate a deterministic UUID from a string key using SHA-256.
+ * Formatted as UUID v4 structure but with deterministic content.
+ */
+export function deterministicUUID(key: string): string {
+    const hash = crypto.createHash('sha256').update(key).digest('hex');
+    return [
+        hash.slice(0, 8),
+        hash.slice(8, 12),
+        '4' + hash.slice(13, 16),
+        ((parseInt(hash[16], 16) & 0x3) | 0x8).toString(16) + hash.slice(17, 20),
+        hash.slice(20, 32),
+    ].join('-');
+}
+
+/**
  * Invoke a single agent with a message. Contains all Claude/Codex invocation logic.
  * Returns the raw response text.
  */
@@ -56,7 +72,8 @@ export async function invokeAgent(
     shouldReset: boolean,
     agents: Record<string, AgentConfig> = {},
     teams: Record<string, TeamConfig> = {},
-    messageId?: string
+    messageId?: string,
+    sessionKey?: string
 ): Promise<string> {
     // Ensure agent directory exists with config files
     const agentDir = path.join(workspacePath, agentId);
@@ -130,9 +147,21 @@ export async function invokeAgent(
         if (modelId) {
             claudeArgs.push('--model', modelId);
         }
-        if (continueConversation) {
+
+        if (sessionKey) {
+            const sessionId = deterministicUUID(`${agentId}:${sessionKey}`);
+            if (shouldReset) {
+                // Start fresh but pin the session ID so future messages resume it
+                claudeArgs.push('--session-id', sessionId);
+            } else {
+                // Resume the existing session
+                claudeArgs.push('--resume', sessionId);
+            }
+        } else if (continueConversation) {
+            // Fallback: continue last session (backward compat when no sessionKey)
             claudeArgs.push('-c');
         }
+
         claudeArgs.push('-p', message);
 
         return await runCommand('claude', claudeArgs, workingDir, {

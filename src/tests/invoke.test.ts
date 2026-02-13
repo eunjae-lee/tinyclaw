@@ -43,7 +43,7 @@ vi.mock('../lib/logging', () => ({
 }));
 
 import { spawn } from 'child_process';
-import { invokeAgent } from '../lib/invoke';
+import { invokeAgent, deterministicUUID } from '../lib/invoke';
 
 const mockedSpawn = vi.mocked(spawn);
 
@@ -238,5 +238,103 @@ describe('invokeAgent - Codex provider', () => {
 
         const { args } = getSpawnArgs();
         expect(args).not.toContain('--allowedTools');
+    });
+});
+
+describe('invokeAgent - session isolation', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+    });
+
+    function getSpawnArgs(): { command: string; args: string[] } {
+        const call = mockedSpawn.mock.calls[0];
+        return { command: call[0] as string, args: call[1] as string[] };
+    }
+
+    it('uses --resume with deterministic UUID when sessionKey is provided and not resetting', async () => {
+        const agent: AgentConfig = {
+            name: 'Coder',
+            provider: 'anthropic',
+            model: 'sonnet',
+            working_directory: '/tmp/coder',
+        };
+
+        await invokeAgent(agent, 'coder', 'hello', '/tmp/workspace', false, {}, {}, undefined, 'thread_123');
+
+        const { args } = getSpawnArgs();
+        const resumeIndex = args.indexOf('--resume');
+        expect(resumeIndex).toBeGreaterThan(-1);
+        const expectedUUID = deterministicUUID('coder:thread_123');
+        expect(args[resumeIndex + 1]).toBe(expectedUUID);
+        expect(args).not.toContain('-c');
+        expect(args).not.toContain('--session-id');
+    });
+
+    it('uses --session-id with deterministic UUID when sessionKey is provided and resetting', async () => {
+        const agent: AgentConfig = {
+            name: 'Coder',
+            provider: 'anthropic',
+            model: 'sonnet',
+            working_directory: '/tmp/coder',
+        };
+
+        await invokeAgent(agent, 'coder', 'hello', '/tmp/workspace', true, {}, {}, undefined, 'thread_123');
+
+        const { args } = getSpawnArgs();
+        const sessionIdIndex = args.indexOf('--session-id');
+        expect(sessionIdIndex).toBeGreaterThan(-1);
+        const expectedUUID = deterministicUUID('coder:thread_123');
+        expect(args[sessionIdIndex + 1]).toBe(expectedUUID);
+        expect(args).not.toContain('-c');
+        expect(args).not.toContain('--resume');
+    });
+
+    it('falls back to -c when no sessionKey and not resetting', async () => {
+        const agent: AgentConfig = {
+            name: 'Coder',
+            provider: 'anthropic',
+            model: 'sonnet',
+            working_directory: '/tmp/coder',
+        };
+
+        await invokeAgent(agent, 'coder', 'hello', '/tmp/workspace', false);
+
+        const { args } = getSpawnArgs();
+        expect(args).toContain('-c');
+        expect(args).not.toContain('--resume');
+        expect(args).not.toContain('--session-id');
+    });
+
+    it('has no session flags when resetting without sessionKey', async () => {
+        const agent: AgentConfig = {
+            name: 'Coder',
+            provider: 'anthropic',
+            model: 'sonnet',
+            working_directory: '/tmp/coder',
+        };
+
+        await invokeAgent(agent, 'coder', 'hello', '/tmp/workspace', true);
+
+        const { args } = getSpawnArgs();
+        expect(args).not.toContain('-c');
+        expect(args).not.toContain('--resume');
+        expect(args).not.toContain('--session-id');
+    });
+
+    it('generates different UUIDs for different agents in the same thread', () => {
+        const uuid1 = deterministicUUID('agent1:thread_123');
+        const uuid2 = deterministicUUID('agent2:thread_123');
+        expect(uuid1).not.toBe(uuid2);
+    });
+
+    it('generates same UUID for same agent and session key', () => {
+        const uuid1 = deterministicUUID('coder:thread_123');
+        const uuid2 = deterministicUUID('coder:thread_123');
+        expect(uuid1).toBe(uuid2);
+    });
+
+    it('generates valid UUID format', () => {
+        const uuid = deterministicUUID('test:key');
+        expect(uuid).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
     });
 });

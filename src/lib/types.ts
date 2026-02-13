@@ -77,6 +77,7 @@ export interface MessageData {
     messageId: string;
     agent?: string; // optional: pre-routed agent id from channel client
     files?: string[];
+    sessionKey?: string; // per-thread/DM session isolation key
 }
 
 export interface ResponseData {

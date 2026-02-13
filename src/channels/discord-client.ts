@@ -55,6 +55,7 @@ interface QueueData {
     messageId: string;
     files?: string[];
     agent?: string;
+    sessionKey?: string;
 }
 
 interface ResponseData {
@@ -407,6 +408,13 @@ client.on(Events.MessageCreate, async (message: Message) => {
             : undefined;
         const agent = threadAgent ?? channelDefault;
 
+        // Compute session key for per-thread/DM isolation
+        const sessionKey = isThread
+            ? message.channel.id                    // thread ID
+            : message.guild
+                ? messageId                          // channel msg (will become thread)
+                : `dm_${message.author.id}`;         // DM
+
         // Write to incoming queue
         const queueData: QueueData = {
             channel: 'discord',
@@ -417,6 +425,7 @@ client.on(Events.MessageCreate, async (message: Message) => {
             messageId: messageId,
             files: downloadedFiles.length > 0 ? downloadedFiles : undefined,
             agent: agent,
+            sessionKey: sessionKey,
         };
 
         const queueFile = path.join(QUEUE_INCOMING, `discord_${messageId}.json`);
