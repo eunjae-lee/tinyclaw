@@ -30,4 +30,3 @@ dist/
 .idea/
 *.swp
 .claude/settings.local.json
-.claude/settings.json
