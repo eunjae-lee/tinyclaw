@@ -6,7 +6,7 @@
 
 import fs from 'fs';
 import path from 'path';
-import { MessageData, ResponseData } from './types';
+import { MessageData, ResponseData, StreamingData } from './types';
 import {
     QUEUE_INCOMING, QUEUE_OUTGOING, QUEUE_PROCESSING,
     QUEUE_DEAD_LETTER, MAX_RETRY_COUNT,
@@ -82,14 +82,45 @@ export async function processMessage(messageFile: string): Promise<void> {
             if (fs.existsSync(agentResetFlag)) fs.unlinkSync(agentResetFlag);
         }
 
+        // Set up streaming callback for real-time partial responses
+        const streamingFile = path.join(QUEUE_OUTGOING, `discord_${messageId}.streaming`);
+        let lastStreamWrite = 0;
+        const STREAM_THROTTLE_MS = 1000;
+
+        const onChunk = (accumulated: string) => {
+            const now = Date.now();
+            if (now - lastStreamWrite < STREAM_THROTTLE_MS) return;
+            lastStreamWrite = now;
+
+            try {
+                const streamingData: StreamingData = {
+                    status: 'streaming',
+                    channel,
+                    sender,
+                    messageId,
+                    partial: accumulated,
+                    agent: agentId,
+                    timestamp: now,
+                };
+                fs.writeFileSync(streamingFile, JSON.stringify(streamingData));
+            } catch (e) {
+                log('WARN', `Failed to write streaming file: ${(e as Error).message}`);
+            }
+        };
+
         let finalResponse: string;
 
         try {
-            finalResponse = await invokeAgent(agent, agentId, message, workspacePath, shouldReset, agents, messageId, sessionKey);
+            finalResponse = await invokeAgent(agent, agentId, message, workspacePath, shouldReset, agents, messageId, sessionKey, onChunk);
         } catch (error) {
             const provider = agent.provider || 'anthropic';
             log('ERROR', `${provider === 'openai' ? 'Codex' : 'Claude'} error (agent: ${agentId}): ${(error as Error).message}`);
             finalResponse = "Sorry, I encountered an error processing your request. Please check the queue logs.";
+        } finally {
+            // Clean up streaming file
+            try {
+                if (fs.existsSync(streamingFile)) fs.unlinkSync(streamingFile);
+            } catch { /* ignore */ }
         }
 
         // Detect file references in the response: [send_file: /path/to/file]

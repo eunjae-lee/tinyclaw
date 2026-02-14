@@ -30,7 +30,7 @@ vi.mock('../lib/logging', () => ({
 }));
 
 vi.mock('../lib/invoke', () => ({
-    invokeAgent: vi.fn(() => Promise.resolve('Agent response here')),
+    invokeAgent: vi.fn((...args: any[]) => Promise.resolve('Agent response here')),
 }));
 
 // Don't mock routing — use real routing logic
@@ -122,6 +122,7 @@ describe('processMessage', () => {
             expect.any(Object),
             'msg_123',
             undefined,
+            expect.any(Function),
         );
     });
 
@@ -143,6 +144,7 @@ describe('processMessage', () => {
             expect.any(Object),
             'msg_123',
             undefined,
+            expect.any(Function),
         );
     });
 
@@ -163,6 +165,7 @@ describe('processMessage', () => {
             expect.any(Object),
             'msg_123',
             undefined,
+            expect.any(Function),
         );
     });
 
@@ -189,6 +192,7 @@ describe('processMessage', () => {
             expect.any(Object),
             'msg_123',
             undefined,
+            expect.any(Function),
         );
     });
 
@@ -298,6 +302,7 @@ describe('processMessage', () => {
             expect.any(Object),
             'msg_123',
             'thread_abc',
+            expect.any(Function),
         );
     });
 });
@@ -531,5 +536,125 @@ describe('recoverStuckFiles', () => {
     it('returns 0 when processing directory is empty', () => {
         const recovered = recoverStuckFiles(15 * 60 * 1000);
         expect(recovered).toBe(0);
+    });
+});
+
+describe('processMessage - streaming file lifecycle', () => {
+    let tmpDir: string;
+    let incomingDir: string;
+    let processingDir: string;
+    let outgoingDir: string;
+
+    beforeEach(async () => {
+        vi.clearAllMocks();
+
+        tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'stream-test-'));
+        incomingDir = path.join(tmpDir, 'incoming');
+        processingDir = path.join(tmpDir, 'processing');
+        outgoingDir = path.join(tmpDir, 'outgoing');
+        fs.mkdirSync(incomingDir, { recursive: true });
+        fs.mkdirSync(processingDir, { recursive: true });
+        fs.mkdirSync(outgoingDir, { recursive: true });
+
+        const configMock = await import('../lib/config');
+        (configMock as any).QUEUE_INCOMING = incomingDir;
+        (configMock as any).QUEUE_PROCESSING = processingDir;
+        (configMock as any).QUEUE_OUTGOING = outgoingDir;
+        (configMock as any).QUEUE_DEAD_LETTER = path.join(tmpDir, 'dead-letter');
+        (configMock as any).MAX_RETRY_COUNT = 3;
+        (configMock as any).RESET_FLAG = path.join(tmpDir, 'reset_flag');
+        (configMock as any).TINYCLAW_CONFIG_WORKSPACE = path.join(tmpDir, 'workspace');
+
+        vi.mocked(getSettings).mockReturnValue({
+            agents: {
+                coder: { name: 'Coder', provider: 'anthropic', model: 'sonnet', working_directory: '/tmp/coder' },
+            },
+        });
+        vi.mocked(getAgents).mockReturnValue({
+            coder: { name: 'Coder', provider: 'anthropic', model: 'sonnet', working_directory: '/tmp/coder' },
+        });
+    });
+
+    afterEach(() => {
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+    });
+
+    function writeMessage(data: Record<string, unknown>): string {
+        const filename = `discord_test_${Date.now()}.json`;
+        const filePath = path.join(incomingDir, filename);
+        fs.writeFileSync(filePath, JSON.stringify({
+            channel: 'discord',
+            sender: 'testuser',
+            message: 'hello',
+            timestamp: Date.now(),
+            messageId: 'msg_stream',
+            ...data,
+        }));
+        return filePath;
+    }
+
+    it('passes onChunk callback to invokeAgent', async () => {
+        const msgFile = writeMessage({ message: 'hello', agent: 'coder' });
+        await processMessage(msgFile);
+
+        expect(invokeAgent).toHaveBeenCalledWith(
+            expect.any(Object),
+            'coder',
+            'hello',
+            expect.any(String),
+            expect.any(Boolean),
+            expect.any(Object),
+            'msg_stream',
+            undefined,
+            expect.any(Function), // onChunk callback
+        );
+    });
+
+    it('writes .streaming file when onChunk is called', async () => {
+        // Make invokeAgent call the onChunk callback
+        vi.mocked(invokeAgent).mockImplementation(async (...args: any[]) => {
+            const onChunk = args[8];
+            if (typeof onChunk === 'function') {
+                onChunk('partial response');
+                // Wait a bit to allow the throttle check to pass
+            }
+            return 'final response';
+        });
+
+        const msgFile = writeMessage({ message: 'hello', agent: 'coder' });
+        await processMessage(msgFile);
+
+        // After completion, .streaming file should be cleaned up
+        const streamingFiles = fs.readdirSync(outgoingDir).filter(f => f.endsWith('.streaming'));
+        expect(streamingFiles).toHaveLength(0);
+
+        // But the final .json should exist
+        const jsonFiles = fs.readdirSync(outgoingDir).filter(f => f.endsWith('.json'));
+        expect(jsonFiles).toHaveLength(1);
+        const response = JSON.parse(fs.readFileSync(path.join(outgoingDir, jsonFiles[0]), 'utf8'));
+        expect(response.message).toBe('final response');
+    });
+
+    it('cleans up .streaming file on error', async () => {
+        vi.mocked(invokeAgent).mockImplementation(async (...args: any[]) => {
+            const onChunk = args[8];
+            if (typeof onChunk === 'function') {
+                onChunk('partial before error');
+            }
+            throw new Error('Agent crashed mid-stream');
+        });
+
+        const msgFile = writeMessage({ message: 'hello', agent: 'coder' });
+        await processMessage(msgFile);
+
+        // .streaming file should be cleaned up
+        const streamingFiles = fs.readdirSync(outgoingDir).filter(f => f.endsWith('.streaming'));
+        expect(streamingFiles).toHaveLength(0);
+
+        // Error response should be written
+        const jsonFiles = fs.readdirSync(outgoingDir).filter(f => f.endsWith('.json'));
+        expect(jsonFiles).toHaveLength(1);
+        const response = JSON.parse(fs.readFileSync(path.join(outgoingDir, jsonFiles[0]), 'utf8'));
+        expect(response.message).toContain('error');
     });
 });

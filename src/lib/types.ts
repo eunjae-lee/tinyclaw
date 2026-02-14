@@ -95,6 +95,18 @@ export interface SessionMapping {
     createdAt: number;
 }
 
+export interface StreamingData {
+    status: 'streaming';
+    channel: string;
+    sender: string;
+    messageId: string;
+    partial: string;
+    agent?: string;
+    timestamp: number;
+}
+
+export type StreamChunkCallback = (accumulated: string) => void;
+
 // Model name mapping
 export const CLAUDE_MODEL_IDS: Record<string, string> = {
     'sonnet': 'claude-sonnet-4-5',

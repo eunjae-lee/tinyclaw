@@ -47,7 +47,7 @@ vi.mock('../lib/session-store', () => ({
 }));
 
 import { spawn } from 'child_process';
-import { invokeAgent, runCommand } from '../lib/invoke';
+import { invokeAgent, runCommand, runCommandStreaming } from '../lib/invoke';
 import { getSession, createSession } from '../lib/session-store';
 
 const mockedSpawn = vi.mocked(spawn);
@@ -572,5 +572,249 @@ describe('runCommand - timeout', () => {
             .rejects.toThrow('timed out');
 
         expect(killFn).toHaveBeenCalledWith('SIGTERM');
+    });
+});
+
+describe('runCommandStreaming - NDJSON parsing', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+    });
+
+    function mockStreamingSpawn(lines: string[], exitCode = 0) {
+        mockedSpawn.mockImplementation((() => {
+            const EventEmitter = require('events');
+            const { Readable } = require('stream');
+
+            const stdout = new Readable({ read() {} });
+            const stderr = new Readable({ read() {} });
+            const child = new EventEmitter();
+            child.stdout = stdout;
+            child.stderr = stderr;
+            child.stdout.setEncoding = vi.fn();
+            child.stderr.setEncoding = vi.fn();
+            child.kill = vi.fn();
+            child.killed = false;
+
+            // Emit data first, then close on next tick so data handlers run first
+            process.nextTick(() => {
+                for (const line of lines) {
+                    stdout.push(line + '\n');
+                }
+                stdout.push(null);
+                // Delay close so data events are processed
+                setTimeout(() => child.emit('close', exitCode), 0);
+            });
+
+            return child;
+        }) as any);
+    }
+
+    it('parses content_block_delta events and calls onChunk with accumulated text', async () => {
+        const lines = [
+            JSON.stringify({ type: 'content_block_delta', delta: { type: 'text_delta', text: 'Hello' } }),
+            JSON.stringify({ type: 'content_block_delta', delta: { type: 'text_delta', text: ' world' } }),
+            JSON.stringify({ type: 'result', result: 'Hello world' }),
+        ];
+        mockStreamingSpawn(lines);
+
+        const chunks: string[] = [];
+        const result = await runCommandStreaming('claude', ['-p', 'test'], (acc) => chunks.push(acc));
+
+        expect(result).toBe('Hello world');
+        expect(chunks).toEqual(['Hello', 'Hello world']);
+    });
+
+    it('parses assistant events with content blocks', async () => {
+        const lines = [
+            JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: 'Hi there' }] } }),
+            JSON.stringify({ type: 'result', result: 'Hi there' }),
+        ];
+        mockStreamingSpawn(lines);
+
+        const chunks: string[] = [];
+        const result = await runCommandStreaming('claude', ['-p', 'test'], (acc) => chunks.push(acc));
+
+        expect(result).toBe('Hi there');
+        expect(chunks).toEqual(['Hi there']);
+    });
+
+    it('falls back to accumulated text when no result event', async () => {
+        const lines = [
+            JSON.stringify({ type: 'content_block_delta', delta: { type: 'text_delta', text: 'partial' } }),
+        ];
+        mockStreamingSpawn(lines);
+
+        const chunks: string[] = [];
+        const result = await runCommandStreaming('claude', ['-p', 'test'], (acc) => chunks.push(acc));
+
+        expect(result).toBe('partial');
+    });
+
+    it('handles mixed assistant and delta events', async () => {
+        const lines = [
+            JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: 'Start' }] } }),
+            JSON.stringify({ type: 'content_block_delta', delta: { type: 'text_delta', text: ' more' } }),
+            JSON.stringify({ type: 'result', result: 'Start more' }),
+        ];
+        mockStreamingSpawn(lines);
+
+        const chunks: string[] = [];
+        const result = await runCommandStreaming('claude', ['-p', 'test'], (acc) => chunks.push(acc));
+
+        expect(result).toBe('Start more');
+        expect(chunks).toEqual(['Start', 'Start more']);
+    });
+
+    it('skips non-JSON lines gracefully', async () => {
+        const lines = [
+            'some debug output',
+            JSON.stringify({ type: 'content_block_delta', delta: { type: 'text_delta', text: 'ok' } }),
+            JSON.stringify({ type: 'result', result: 'ok' }),
+        ];
+        mockStreamingSpawn(lines);
+
+        const chunks: string[] = [];
+        const result = await runCommandStreaming('claude', ['-p', 'test'], (acc) => chunks.push(acc));
+
+        expect(result).toBe('ok');
+    });
+
+    it('rejects on non-zero exit code', async () => {
+        mockedSpawn.mockImplementation((() => {
+            const EventEmitter = require('events');
+            const { Readable } = require('stream');
+
+            const stdout = new Readable({ read() {} });
+            const stderr = new Readable({ read() {} });
+            const child = new EventEmitter();
+            child.stdout = stdout;
+            child.stderr = stderr;
+            child.stdout.setEncoding = vi.fn();
+            child.stderr.setEncoding = vi.fn();
+            child.kill = vi.fn();
+            child.killed = false;
+
+            process.nextTick(() => {
+                stderr.push('Some error');
+                stderr.push(null);
+                stdout.push(null);
+                setTimeout(() => child.emit('close', 1), 0);
+            });
+
+            return child;
+        }) as any);
+
+        const chunks: string[] = [];
+        await expect(
+            runCommandStreaming('claude', ['-p', 'test'], (acc) => chunks.push(acc))
+        ).rejects.toThrow('Some error');
+    });
+
+    it('handles timeout same as runCommand', async () => {
+        const killFn = vi.fn();
+
+        mockedSpawn.mockImplementation((() => {
+            const EventEmitter = require('events');
+            const { Readable } = require('stream');
+
+            const stdout = new Readable({ read() {} });
+            const stderr = new Readable({ read() {} });
+            const child = new EventEmitter();
+            child.stdout = stdout;
+            child.stderr = stderr;
+            child.stdout.setEncoding = vi.fn();
+            child.stderr.setEncoding = vi.fn();
+            child.killed = false;
+            child.kill = killFn.mockImplementation(() => {
+                child.killed = true;
+                process.nextTick(() => {
+                    stdout.push(null);
+                    child.emit('close', null);
+                });
+            });
+
+            return child;
+        }) as any);
+
+        await expect(
+            runCommandStreaming('claude', ['-p', 'test'], () => {}, undefined, undefined, 100)
+        ).rejects.toThrow('timed out');
+    });
+});
+
+describe('invokeAgent - streaming support', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+
+        // Restore default spawn mock
+        mockedSpawn.mockImplementation((() => {
+            const EventEmitter = require('events');
+            const { Readable } = require('stream');
+
+            const stdout = new Readable({ read() {} });
+            const stderr = new Readable({ read() {} });
+            const child = new EventEmitter();
+            child.stdout = stdout;
+            child.stderr = stderr;
+            child.stdout.setEncoding = vi.fn();
+            child.stderr.setEncoding = vi.fn();
+
+            process.nextTick(() => {
+                stdout.push('mocked response');
+                stdout.push(null);
+                child.emit('close', 0);
+            });
+
+            return child;
+        }) as any);
+    });
+
+    function getSpawnArgs(): { command: string; args: string[] } {
+        const call = mockedSpawn.mock.calls[0];
+        return { command: call[0] as string, args: call[1] as string[] };
+    }
+
+    it('adds --output-format stream-json when onChunk is provided', async () => {
+        const agent: AgentConfig = {
+            name: 'Coder',
+            provider: 'anthropic',
+            model: 'sonnet',
+            working_directory: '/tmp/coder',
+        };
+
+        await invokeAgent(agent, 'coder', 'hello', '/tmp/workspace', true, {}, undefined, undefined, () => {});
+
+        const { args } = getSpawnArgs();
+        const fmtIndex = args.indexOf('--output-format');
+        expect(fmtIndex).toBeGreaterThan(-1);
+        expect(args[fmtIndex + 1]).toBe('stream-json');
+    });
+
+    it('does not add --output-format when onChunk is not provided', async () => {
+        const agent: AgentConfig = {
+            name: 'Coder',
+            provider: 'anthropic',
+            model: 'sonnet',
+            working_directory: '/tmp/coder',
+        };
+
+        await invokeAgent(agent, 'coder', 'hello', '/tmp/workspace', true);
+
+        const { args } = getSpawnArgs();
+        expect(args).not.toContain('--output-format');
+    });
+
+    it('does not add --output-format for codex provider even with onChunk', async () => {
+        const agent: AgentConfig = {
+            name: 'CodexAgent',
+            provider: 'openai',
+            model: 'gpt-5.3-codex',
+            working_directory: '/tmp/codex',
+        };
+
+        await invokeAgent(agent, 'codex-agent', 'hello', '/tmp/workspace', true, {}, undefined, undefined, () => {});
+
+        const { args } = getSpawnArgs();
+        expect(args).not.toContain('--output-format');
     });
 });

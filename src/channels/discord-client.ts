@@ -81,6 +81,26 @@ interface ResponseData {
     files?: string[];
 }
 
+interface StreamingData {
+    status: 'streaming';
+    channel: string;
+    sender: string;
+    messageId: string;
+    partial: string;
+    agent?: string;
+    timestamp: number;
+}
+
+interface StreamingMessage {
+    discordMessage: Message;
+    channel: DMChannel | TextChannel | ThreadChannel;
+    lastContent: string;
+    lastEditTime: number;
+}
+
+// Track active streaming messages (messageId → StreamingMessage)
+const streamingMessages = new Map<string, StreamingMessage>();
+
 // sanitizeFileName, buildUniqueFilePath imported from ../lib/discord-utils
 
 // Download a file from URL to local path
@@ -506,6 +526,113 @@ client.on(Events.MessageCreate, async (message: Message) => {
     }
 });
 
+// Watch for streaming partial responses
+let processingStreamingCheck = false;
+async function checkStreamingFiles(): Promise<void> {
+    if (processingStreamingCheck) return;
+    processingStreamingCheck = true;
+
+    try {
+        const files = fs.readdirSync(QUEUE_OUTGOING)
+            .filter(f => f.endsWith('.streaming'));
+
+        for (const file of files) {
+            const filePath = path.join(QUEUE_OUTGOING, file);
+
+            try {
+                const data: StreamingData = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+                const { messageId, partial } = data;
+
+                if (!partial) continue;
+
+                const existing = streamingMessages.get(messageId);
+
+                if (existing) {
+                    // Update existing streaming message if content changed
+                    if (existing.lastContent !== partial) {
+                        const now = Date.now();
+                        if (now - existing.lastEditTime >= 1000) {
+                            try {
+                                // Truncate to 2000 chars for Discord limit during streaming
+                                const displayText = partial.length > 2000
+                                    ? partial.substring(0, 1950) + '\n\n*[streaming...]*'
+                                    : partial;
+                                await existing.discordMessage.edit(displayText);
+                                existing.lastContent = partial;
+                                existing.lastEditTime = now;
+                            } catch (editErr) {
+                                log('WARN', `Failed to edit streaming message: ${(editErr as Error).message}`);
+                            }
+                        }
+                    }
+                } else {
+                    // First streaming chunk — send initial message
+                    const pending = pendingMessages.get(messageId);
+                    if (!pending) continue;
+
+                    let targetChannel = pending.channel;
+
+                    // Create thread if needed
+                    if (pending.needsThread) {
+                        try {
+                            const threadName = (pending.message.content || 'conversation').substring(0, 90);
+                            const thread = await pending.message.startThread({
+                                name: threadName,
+                                autoArchiveDuration: 1440,
+                            });
+                            const { defaultAgents: da } = getAllowedChannels();
+                            const parentDefault = da.get(pending.channel.id);
+                            botOwnedThreads.set(thread.id, data.agent ?? parentDefault);
+                            saveBotOwnedThreads();
+                            remapSession(messageId, thread.id);
+                            targetChannel = thread;
+                            pending.channel = thread;
+                            pending.needsThread = false;
+                        } catch (threadErr) {
+                            log('WARN', `Failed to create thread for streaming: ${(threadErr as Error).message}`);
+                        }
+                    }
+
+                    try {
+                        const displayText = partial.length > 2000
+                            ? partial.substring(0, 1950) + '\n\n*[streaming...]*'
+                            : partial;
+
+                        let sentMessage: Message;
+                        if (pending.needsThread) {
+                            sentMessage = await targetChannel.send(displayText);
+                        } else {
+                            try {
+                                sentMessage = await pending.message.reply(displayText);
+                            } catch {
+                                sentMessage = await targetChannel.send(displayText);
+                            }
+                        }
+
+                        streamingMessages.set(messageId, {
+                            discordMessage: sentMessage,
+                            channel: targetChannel,
+                            lastContent: partial,
+                            lastEditTime: Date.now(),
+                        });
+                    } catch (sendErr) {
+                        log('WARN', `Failed to send initial streaming message: ${(sendErr as Error).message}`);
+                    }
+                }
+            } catch (err) {
+                log('WARN', `Error processing streaming file ${file}: ${(err as Error).message}`);
+            }
+        }
+    } catch (err) {
+        log('ERROR', `checkStreamingFiles error: ${(err as Error).message}`);
+    } finally {
+        processingStreamingCheck = false;
+    }
+}
+
+// Check streaming files every second
+setInterval(checkStreamingFiles, 1000);
+
 // Watch for responses in outgoing queue
 async function checkOutgoingQueue(): Promise<void> {
     if (processingOutgoingQueue) {
@@ -525,10 +652,59 @@ async function checkOutgoingQueue(): Promise<void> {
                 const responseData: ResponseData = JSON.parse(fs.readFileSync(filePath, 'utf8'));
                 const { messageId, message: responseText, sender } = responseData;
 
-                // Find pending message
-                const pending = pendingMessages.get(messageId);
-                if (pending) {
-                    // Determine where to send the response
+                // Check if we were streaming this message
+                const streaming = streamingMessages.get(messageId);
+
+                if (streaming) {
+                    // Streaming → final transition: edit existing message with final content
+                    const targetChannel = streaming.channel;
+
+                    // Send any attached files
+                    if (responseData.files && responseData.files.length > 0) {
+                        const attachments: AttachmentBuilder[] = [];
+                        for (const file of responseData.files) {
+                            try {
+                                if (!fs.existsSync(file)) continue;
+                                attachments.push(new AttachmentBuilder(file));
+                            } catch (fileErr) {
+                                log('ERROR', `Failed to prepare file ${file}: ${(fileErr as Error).message}`);
+                            }
+                        }
+                        if (attachments.length > 0) {
+                            await targetChannel.send({ files: attachments });
+                            log('INFO', `Sent ${attachments.length} file(s) to Discord`);
+                        }
+                    }
+
+                    // Final edit with complete response
+                    if (responseText) {
+                        const chunks = splitMessage(responseText);
+
+                        // Edit the streaming message with the first chunk
+                        try {
+                            await streaming.discordMessage.edit(chunks[0]!);
+                        } catch (editErr) {
+                            log('WARN', `Failed to edit streaming message with final content: ${(editErr as Error).message}`);
+                            // Fall back to sending as a new message
+                            await targetChannel.send(chunks[0]!);
+                        }
+
+                        // Send remaining chunks as new messages
+                        for (let i = 1; i < chunks.length; i++) {
+                            await targetChannel.send(chunks[i]!);
+                        }
+                    }
+
+                    log('INFO', `Finalized streaming response to ${sender} (${responseText.length} chars${responseData.files ? `, ${responseData.files.length} file(s)` : ''})`);
+
+                    // Clean up
+                    streamingMessages.delete(messageId);
+                    pendingMessages.delete(messageId);
+                    savePendingMessages();
+                    fs.unlinkSync(filePath);
+                } else if (pendingMessages.has(messageId)) {
+                    // Non-streaming path (original behavior)
+                    const pending = pendingMessages.get(messageId)!;
                     let targetChannel: DMChannel | TextChannel | ThreadChannel = pending.channel;
 
                     if (pending.needsThread) {
@@ -705,8 +881,10 @@ client.on(Events.ThreadDelete, (thread) => {
 });
 
 // Refresh typing indicator every 8 seconds (Discord typing expires after ~10s)
+// Skip messages that are actively streaming (the updating message serves as feedback)
 setInterval(() => {
-    for (const [, data] of pendingMessages.entries()) {
+    for (const [id, data] of pendingMessages.entries()) {
+        if (streamingMessages.has(id)) continue;
         data.channel.sendTyping().catch(() => {
             // Ignore typing errors silently
         });

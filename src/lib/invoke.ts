@@ -1,7 +1,7 @@
 import { spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
-import { AgentConfig } from './types';
+import { AgentConfig, StreamChunkCallback } from './types';
 import { SCRIPT_DIR, TINYCLAW_CONFIG_HOME, CLI_TIMEOUT_MS, resolveClaudeModel, resolveCodexModel } from './config';
 import { log } from './logging';
 import { ensureAgentDirectory } from './agent-setup';
@@ -66,6 +66,112 @@ export async function runCommand(command: string, args: string[], cwd?: string, 
 }
 
 
+export async function runCommandStreaming(
+    command: string,
+    args: string[],
+    onChunk: StreamChunkCallback,
+    cwd?: string,
+    env?: Record<string, string>,
+    timeoutMs?: number
+): Promise<string> {
+    return new Promise((resolve, reject) => {
+        const child = spawn(command, args, {
+            cwd: cwd || SCRIPT_DIR,
+            env: env ? { ...process.env, ...env } : undefined,
+            stdio: ['ignore', 'pipe', 'pipe'],
+        });
+
+        let accumulated = '';
+        let resultText = '';
+        let stderr = '';
+        let timedOut = false;
+        let lineBuffer = '';
+
+        const effectiveTimeout = timeoutMs ?? CLI_TIMEOUT_MS;
+        const timer = setTimeout(() => {
+            timedOut = true;
+            child.kill('SIGTERM');
+            setTimeout(() => {
+                if (!child.killed) {
+                    child.kill('SIGKILL');
+                }
+            }, 5000);
+        }, effectiveTimeout);
+
+        child.stdout.setEncoding('utf8');
+        child.stderr.setEncoding('utf8');
+
+        child.stdout.on('data', (chunk: string) => {
+            lineBuffer += chunk;
+            const lines = lineBuffer.split('\n');
+            // Keep the last (potentially incomplete) line in the buffer
+            lineBuffer = lines.pop() || '';
+
+            for (const line of lines) {
+                if (!line.trim()) continue;
+                try {
+                    const event = JSON.parse(line);
+                    if (event.type === 'assistant' && event.message?.content) {
+                        // Initial assistant message — extract text blocks
+                        for (const block of event.message.content) {
+                            if (block.type === 'text' && block.text) {
+                                accumulated += block.text;
+                            }
+                        }
+                        onChunk(accumulated);
+                    } else if (event.type === 'content_block_delta' && event.delta?.type === 'text_delta') {
+                        accumulated += event.delta.text;
+                        onChunk(accumulated);
+                    } else if (event.type === 'result') {
+                        resultText = event.result || accumulated;
+                    }
+                } catch {
+                    // Skip non-JSON lines
+                }
+            }
+        });
+
+        child.stderr.on('data', (chunk: string) => {
+            stderr += chunk;
+        });
+
+        child.on('error', (error) => {
+            clearTimeout(timer);
+            reject(error);
+        });
+
+        child.on('close', (code) => {
+            clearTimeout(timer);
+
+            // Process any remaining data in the line buffer
+            if (lineBuffer.trim()) {
+                try {
+                    const event = JSON.parse(lineBuffer);
+                    if (event.type === 'result') {
+                        resultText = event.result || accumulated;
+                    } else if (event.type === 'content_block_delta' && event.delta?.type === 'text_delta') {
+                        accumulated += event.delta.text;
+                    }
+                } catch {
+                    // Not valid JSON — ignore
+                }
+            }
+
+            if (timedOut) {
+                reject(new Error(`Command timed out after ${effectiveTimeout}ms`));
+                return;
+            }
+            if (code === 0) {
+                resolve(resultText || accumulated);
+                return;
+            }
+
+            const errorMessage = stderr.trim() || `Command exited with code ${code}`;
+            reject(new Error(errorMessage));
+        });
+    });
+}
+
 /**
  * Invoke a single agent with a message. Contains all Claude/Codex invocation logic.
  * Returns the raw response text.
@@ -78,7 +184,8 @@ export async function invokeAgent(
     shouldReset: boolean,
     agents: Record<string, AgentConfig> = {},
     messageId?: string,
-    sessionKey?: string
+    sessionKey?: string,
+    onChunk?: StreamChunkCallback
 ): Promise<string> {
     // Ensure agent directory exists with config files
     const agentDir = path.join(workspacePath, agentId);
@@ -149,6 +256,9 @@ export async function invokeAgent(
         if (modelId) {
             claudeArgs.push('--model', modelId);
         }
+        if (onChunk) {
+            claudeArgs.push('--output-format', 'stream-json');
+        }
         // Memory injection
         try {
             cleanupMemoryTmpFiles();
@@ -167,12 +277,18 @@ export async function invokeAgent(
             ...(messageId ? { TINYCLAW_MESSAGE_ID: messageId } : {}),
         };
 
+        // Helper: run claude with streaming or batch depending on onChunk
+        const runClaude = (args: string[]) =>
+            onChunk
+                ? runCommandStreaming('claude', args, onChunk, workingDir, env)
+                : runCommand('claude', args, workingDir, env);
+
         if (sessionKey) {
             if (shouldReset) {
                 const sessionId = createSession(sessionKey, agentId);
                 log('INFO', `Created new session ${sessionId} for key ${sessionKey} (reset)`);
                 claudeArgs.push('--session-id', sessionId, '-p', message);
-                return await runCommand('claude', claudeArgs, workingDir, env);
+                return await runClaude(claudeArgs);
             }
 
             const existing = getSession(sessionKey);
@@ -180,7 +296,7 @@ export async function invokeAgent(
                 // Resume existing session
                 const resumeArgs = [...claudeArgs, '--resume', existing.sessionId, '-p', message];
                 try {
-                    return await runCommand('claude', resumeArgs, workingDir, env);
+                    return await runClaude(resumeArgs);
                 } catch (err) {
                     const errMsg = (err as Error).message || '';
                     if (/session.*not found/i.test(errMsg) || /no such session/i.test(errMsg)) {
@@ -188,7 +304,7 @@ export async function invokeAgent(
                         const sessionId = createSession(sessionKey, agentId);
                         log('INFO', `Session ${existing.sessionId} not found, created new session ${sessionId}`);
                         const newArgs = [...claudeArgs, '--session-id', sessionId, '-p', message];
-                        return await runCommand('claude', newArgs, workingDir, env);
+                        return await runClaude(newArgs);
                     }
                     // Transient error — propagate instead of destroying the session
                     throw err;
@@ -199,7 +315,7 @@ export async function invokeAgent(
             const sessionId = createSession(sessionKey, agentId);
             log('INFO', `Created new session ${sessionId} for key ${sessionKey}`);
             claudeArgs.push('--session-id', sessionId, '-p', message);
-            return await runCommand('claude', claudeArgs, workingDir, env);
+            return await runClaude(claudeArgs);
         }
 
         if (continueConversation) {
@@ -208,6 +324,6 @@ export async function invokeAgent(
         }
 
         claudeArgs.push('-p', message);
-        return await runCommand('claude', claudeArgs, workingDir, env);
+        return await runClaude(claudeArgs);
     }
 }
