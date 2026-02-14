@@ -177,6 +177,13 @@ restart_daemon() {
 
     stop_daemon
     sleep 2
+
+    # launchd may have already restarted the session (RunAtLoad)
+    if session_exists; then
+        echo -e "${GREEN}✓ TinyClaw restarted${NC}"
+        return
+    fi
+
     start_daemon
 }
 
