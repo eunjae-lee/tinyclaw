@@ -552,7 +552,12 @@ async function checkOutgoingQueue(): Promise<void> {
                         } else {
                             // DM or existing thread: first chunk as reply, rest as follow-ups
                             if (chunks.length > 0) {
-                                await pending.message.reply(chunks[0]!);
+                                try {
+                                    await pending.message.reply(chunks[0]!);
+                                } catch {
+                                    // Fall back to send() if reply() fails (e.g. system messages)
+                                    await targetChannel.send(chunks[0]!);
+                                }
                             }
                             for (let i = 1; i < chunks.length; i++) {
                                 await targetChannel.send(chunks[i]!);
@@ -571,8 +576,19 @@ async function checkOutgoingQueue(): Promise<void> {
                     fs.unlinkSync(filePath);
                 }
             } catch (error) {
-                log('ERROR', `Error processing response file ${file}: ${(error as Error).message}`);
-                // Don't delete file on error, might retry
+                const errMsg = (error as Error).message || '';
+                log('ERROR', `Error processing response file ${file}: ${errMsg}`);
+
+                // Permanent Discord errors — no point retrying
+                if (errMsg.includes('Cannot reply') || errMsg.includes('Unknown Message') || errMsg.includes('Invalid Form Body')) {
+                    log('WARN', `Permanent error, cleaning up ${file}`);
+                    try {
+                        const responseData = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+                        pendingMessages.delete(responseData.messageId);
+                    } catch { /* ignore */ }
+                    try { fs.unlinkSync(filePath); } catch { /* ignore */ }
+                }
+                // Transient errors: leave file for retry
             }
         }
 
