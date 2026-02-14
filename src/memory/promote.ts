@@ -29,19 +29,24 @@ function getDailyFiles(days: number): { date: string; content: string }[] {
 }
 
 export async function promoteDailyToMidterm(): Promise<void> {
+    log('INFO', 'Memory promote: starting daily → mid-term promotion');
     const dailyFiles = getDailyFiles(7);
 
     if (dailyFiles.length === 0) {
-        log('INFO', 'Memory: no daily logs found for mid-term promotion');
+        log('INFO', 'Memory promote: no daily logs found for mid-term promotion');
         const midtermPath = path.join(TINYCLAW_MEMORY_HOME, 'mid-term.md');
         fs.mkdirSync(path.dirname(midtermPath), { recursive: true });
         fs.writeFileSync(midtermPath, '# Mid-term Memory\n\nNo recent activity.\n');
         return;
     }
 
+    log('INFO', `Memory promote: found ${dailyFiles.length} daily log(s): [${dailyFiles.map(f => f.date).join(', ')}]`);
+
     const concatenated = dailyFiles
         .map(f => `--- ${f.date} ---\n${f.content}`)
         .join('\n\n');
+
+    log('INFO', `Memory promote: concatenated daily logs = ${concatenated.length} chars, sending to LLM`);
 
     const prompt = `You are a memory system for an AI assistant team. Summarize the following daily logs from the past 7 days into a cohesive rolling summary of approximately 1000 tokens.
 
@@ -62,6 +67,8 @@ ${concatenated}`;
 
     try {
         const summary = await runCommand('claude', ['-p', prompt, '--model', 'haiku']);
+        log('INFO', `Memory promote: LLM returned ${summary.trim().length} chars for mid-term summary`);
+
         const midtermPath = path.join(TINYCLAW_MEMORY_HOME, 'mid-term.md');
         fs.mkdirSync(path.dirname(midtermPath), { recursive: true });
 
@@ -70,13 +77,14 @@ ${concatenated}`;
         const content = `# Mid-term Memory\n*Generated: ${now}*\n*Covering: ${dateRange}*\n\n${summary.trim()}\n`;
 
         fs.writeFileSync(midtermPath, content);
-        log('INFO', `Memory: promoted ${dailyFiles.length} daily logs to mid-term.md`);
+        log('INFO', `Memory promote: wrote mid-term.md (${content.length} bytes, covering ${dateRange})`);
     } catch (err) {
-        log('WARN', `Memory: failed to promote daily to mid-term: ${(err as Error).message}`);
+        log('WARN', `Memory promote: failed daily → mid-term: ${(err as Error).message}`);
     }
 }
 
 export async function promoteToLongterm(): Promise<void> {
+    log('INFO', 'Memory promote: starting mid-term → long-term promotion');
     const midtermPath = path.join(TINYCLAW_MEMORY_HOME, 'mid-term.md');
     const longtermPath = path.join(TINYCLAW_MEMORY_HOME, 'long-term.md');
 
@@ -85,13 +93,15 @@ export async function promoteToLongterm(): Promise<void> {
         : '';
 
     if (!midterm.trim()) {
-        log('INFO', 'Memory: no mid-term content for long-term promotion');
+        log('INFO', 'Memory promote: no mid-term content for long-term promotion');
         return;
     }
 
     const longterm = fs.existsSync(longtermPath)
         ? fs.readFileSync(longtermPath, 'utf8')
         : '';
+
+    log('INFO', `Memory promote: mid-term = ${midterm.length} chars, existing long-term = ${longterm.length || 0} chars, sending to LLM`);
 
     const prompt = `You are a memory system for an AI assistant team. Review the mid-term summary and current long-term memory below. Identify any new DURABLE facts, settled decisions, or stable preferences that should be added to long-term memory.
 
@@ -121,14 +131,15 @@ ${midterm}`;
 
     try {
         const result = await runCommand('claude', ['-p', prompt, '--model', 'haiku']);
+        log('INFO', `Memory promote: LLM returned ${result.trim().length} chars for long-term`);
 
         fs.mkdirSync(path.dirname(longtermPath), { recursive: true });
         const now = new Date().toISOString().slice(0, 10);
         const content = `# Long-term Memory\n*Last updated: ${now}*\n\n${result.trim()}\n`;
 
         fs.writeFileSync(longtermPath, content);
-        log('INFO', 'Memory: promoted mid-term to long-term.md');
+        log('INFO', `Memory promote: wrote long-term.md (${content.length} bytes)`);
     } catch (err) {
-        log('WARN', `Memory: failed to promote to long-term: ${(err as Error).message}`);
+        log('WARN', `Memory promote: failed mid-term → long-term: ${(err as Error).message}`);
     }
 }

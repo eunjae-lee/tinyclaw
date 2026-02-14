@@ -2,6 +2,7 @@
 
 import { readDaily, readMidterm, readLongterm, getMemoryForInjection } from './read';
 import { writeToLongterm } from './write';
+import { log } from '../lib/logging';
 
 const args = process.argv.slice(2);
 const command = args[0];
@@ -21,6 +22,8 @@ function usage(): void {
 }
 
 async function main(): Promise<void> {
+    log('INFO', `Memory CLI: command="${command}" args=[${args.slice(1).join(', ')}]`);
+
     switch (command) {
         case 'read': {
             const layerIdx = args.indexOf('--layer');

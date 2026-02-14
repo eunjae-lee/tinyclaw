@@ -13,6 +13,8 @@ const { tmpDir } = vi.hoisted(() => {
 vi.mock('../lib/config', () => ({
     TINYCLAW_MEMORY_HOME: tmpDir,
     MEMORY_TMP_DIR: tmpDir + '/tmp',
+    LOG_FILE: tmpDir + '/test.log',
+    EVENTS_DIR: tmpDir + '/events',
 }));
 
 import { readDaily, readMidterm, readLongterm, getMemoryForInjection, writeMemoryTempFile, cleanupMemoryTmpFiles } from '../memory/read';

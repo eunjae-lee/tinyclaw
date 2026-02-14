@@ -165,48 +165,73 @@ ${compactText}`;
 export async function ingestSessions(): Promise<void> {
     const settings = getSettings();
     const agents = getAgents(settings);
+    const agentIds = Object.keys(agents);
     const today = new Date().toISOString().slice(0, 10);
     const dailyDir = path.join(TINYCLAW_MEMORY_HOME, 'daily');
     const dailyFile = path.join(dailyDir, `${today}.md`);
 
+    log('INFO', `Memory ingest: starting. ${agentIds.length} agent(s) configured: [${agentIds.join(', ')}]`);
+    log('INFO', `Memory ingest: daily file target = ${dailyFile}`);
+
     let totalProcessed = 0;
+    let totalSkipped = 0;
 
     for (const [agentId, agent] of Object.entries(agents)) {
         const memoryWeight = agent.memory ?? 1;
-        if (memoryWeight === 0) continue;
+        if (memoryWeight === 0) {
+            log('INFO', `Memory ingest: skipping agent ${agentId} (memory=0)`);
+            continue;
+        }
 
         const workingDir = agent.working_directory;
-        if (!workingDir) continue;
+        if (!workingDir) {
+            log('INFO', `Memory ingest: skipping agent ${agentId} (no working_directory)`);
+            continue;
+        }
 
         const projectDir = getClaudeProjectDir(workingDir);
-        if (!fs.existsSync(projectDir)) continue;
+        if (!fs.existsSync(projectDir)) {
+            log('INFO', `Memory ingest: skipping agent ${agentId} — project dir not found: ${projectDir}`);
+            continue;
+        }
 
         const sessionFiles = fs.readdirSync(projectDir)
             .filter(f => f.endsWith('.jsonl'))
             .map(f => path.join(projectDir, f));
+
+        log('INFO', `Memory ingest: agent ${agentId} (${agent.name}) — ${sessionFiles.length} session file(s) in ${projectDir}`);
 
         for (const sessionFile of sessionFiles) {
             const cursor = getCursor(sessionFile);
             const { lines, newOffset, newMtime } = readNewLines(sessionFile, cursor);
 
             if (lines.length === 0) {
+                totalSkipped++;
                 continue;
             }
+
+            log('INFO', `Memory ingest: ${path.basename(sessionFile)} — ${lines.length} new line(s), offset ${cursor?.byteOffset ?? 0} → ${newOffset}`);
 
             const compactText = preprocessJsonl(lines);
 
             if (!compactText) {
+                log('INFO', `Memory ingest: ${path.basename(sessionFile)} — no extractable messages after preprocessing`);
                 saveCursor(sessionFile, { byteOffset: newOffset, lastModified: newMtime });
                 continue;
             }
+
+            log('INFO', `Memory ingest: ${path.basename(sessionFile)} — preprocessed to ${compactText.length} chars, sending to LLM for summarization`);
 
             try {
                 const summary = await summarizeTranscript(agent.name, agentId, compactText, memoryWeight);
 
                 if (summary.trim() === 'NOTHING_NOTABLE' || !summary.trim()) {
+                    log('INFO', `Memory ingest: ${path.basename(sessionFile)} — LLM returned NOTHING_NOTABLE, skipping`);
                     saveCursor(sessionFile, { byteOffset: newOffset, lastModified: newMtime });
                     continue;
                 }
+
+                log('INFO', `Memory ingest: ${path.basename(sessionFile)} — LLM summary received (${summary.trim().length} chars)`);
 
                 // Append to daily log
                 fs.mkdirSync(dailyDir, { recursive: true });
@@ -221,14 +246,12 @@ export async function ingestSessions(): Promise<void> {
 
                 saveCursor(sessionFile, { byteOffset: newOffset, lastModified: newMtime });
                 totalProcessed++;
-                log('INFO', `Memory: ingested session for ${agentId} from ${path.basename(sessionFile)}`);
+                log('INFO', `Memory ingest: ingested session for ${agentId} from ${path.basename(sessionFile)}`);
             } catch (err) {
-                log('WARN', `Memory: failed to summarize session for ${agentId}: ${(err as Error).message}`);
+                log('WARN', `Memory ingest: failed to summarize session for ${agentId} (${path.basename(sessionFile)}): ${(err as Error).message}`);
             }
         }
     }
 
-    if (totalProcessed > 0) {
-        log('INFO', `Memory: ingested ${totalProcessed} session(s) into ${dailyFile}`);
-    }
+    log('INFO', `Memory ingest: done. ${totalProcessed} ingested, ${totalSkipped} unchanged`);
 }

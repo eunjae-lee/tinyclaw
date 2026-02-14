@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { TINYCLAW_MEMORY_HOME, MEMORY_TMP_DIR } from '../lib/config';
+import { log } from '../lib/logging';
 
 export function readDaily(date?: string): string {
     const dateStr = date || new Date().toISOString().slice(0, 10);
@@ -25,7 +26,12 @@ export function getMemoryForInjection(): string {
     const midterm = readMidterm();
     const daily = readDaily();
 
-    if (!midterm && !daily) return '';
+    if (!midterm && !daily) {
+        log('INFO', 'Memory inject: no memory content available (both mid-term and daily empty)');
+        return '';
+    }
+
+    log('INFO', `Memory inject: preparing injection — mid-term=${midterm.length} chars, daily=${daily.length} chars`);
 
     let content = '## Memory Context\n\n';
 
@@ -41,6 +47,8 @@ export function getMemoryForInjection(): string {
 
     content += '---\n';
     content += '*If you need more historical context, run: `tinyclaw memory read --layer long-term`*\n';
+
+    log('INFO', `Memory inject: total injection content = ${content.length} chars`);
 
     return content;
 }
