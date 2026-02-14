@@ -287,8 +287,8 @@ fi
 if [ -f "$PROJECT_ROOT/templates/heartbeat.md" ]; then
     cp "$PROJECT_ROOT/templates/heartbeat.md" "$TINYCLAW_CONFIG_HOME/"
 fi
-if [ -f "$PROJECT_ROOT/templates/AGENTS.md" ]; then
-    cp "$PROJECT_ROOT/templates/AGENTS.md" "$TINYCLAW_CONFIG_HOME/"
+if [ -f "$PROJECT_ROOT/templates/CLAUDE.md" ]; then
+    cp "$PROJECT_ROOT/templates/CLAUDE.md" "$TINYCLAW_CONFIG_HOME/"
 fi
 if [ -f "$PROJECT_ROOT/templates/config.gitignore" ]; then
     cp "$PROJECT_ROOT/templates/config.gitignore" "$TINYCLAW_CONFIG_HOME/.gitignore"
@@ -307,8 +307,9 @@ fi
 if [ -f "$TINYCLAW_CONFIG_HOME/heartbeat.md" ]; then
     cp "$TINYCLAW_CONFIG_HOME/heartbeat.md" "$DEFAULT_AGENT_DIR/"
 fi
-if [ -f "$TINYCLAW_CONFIG_HOME/AGENTS.md" ]; then
-    cp "$TINYCLAW_CONFIG_HOME/AGENTS.md" "$DEFAULT_AGENT_DIR/"
+if [ -f "$TINYCLAW_CONFIG_HOME/CLAUDE.md" ]; then
+    mkdir -p "$DEFAULT_AGENT_DIR/.claude"
+    cp "$TINYCLAW_CONFIG_HOME/CLAUDE.md" "$DEFAULT_AGENT_DIR/.claude/CLAUDE.md"
 fi
 echo -e "${GREEN}✓ Created default agent directory: $DEFAULT_AGENT_DIR${NC}"
 
@@ -322,8 +323,9 @@ for agent_id in "${ADDITIONAL_AGENTS[@]}"; do
     if [ -f "$TINYCLAW_CONFIG_HOME/heartbeat.md" ]; then
         cp "$TINYCLAW_CONFIG_HOME/heartbeat.md" "$AGENT_DIR/"
     fi
-    if [ -f "$TINYCLAW_CONFIG_HOME/AGENTS.md" ]; then
-        cp "$TINYCLAW_CONFIG_HOME/AGENTS.md" "$AGENT_DIR/"
+    if [ -f "$TINYCLAW_CONFIG_HOME/CLAUDE.md" ]; then
+        mkdir -p "$AGENT_DIR/.claude"
+        cp "$TINYCLAW_CONFIG_HOME/CLAUDE.md" "$AGENT_DIR/.claude/CLAUDE.md"
     fi
     echo -e "${GREEN}✓ Created agent directory: $AGENT_DIR${NC}"
 done

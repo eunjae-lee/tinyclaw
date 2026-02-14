@@ -184,18 +184,12 @@ agent_add() {
         echo "  → Copied heartbeat.md to agent directory"
     fi
 
-    # Copy AGENTS.md
-    if [ -f "$TINYCLAW_CONFIG_HOME/AGENTS.md" ]; then
-        cp "$TINYCLAW_CONFIG_HOME/AGENTS.md" "$AGENTS_DIR/$AGENT_ID/"
-        echo "  → Copied AGENTS.md to agent directory"
-    elif [ -f "$SCRIPT_DIR/templates/AGENTS.md" ]; then
-        cp "$SCRIPT_DIR/templates/AGENTS.md" "$AGENTS_DIR/$AGENT_ID/"
-        echo "  → Copied AGENTS.md to agent directory"
-    fi
-
-    # Copy AGENTS.md content into .claude/CLAUDE.md as well
-    if [ -f "$AGENTS_DIR/$AGENT_ID/AGENTS.md" ]; then
-        cp "$AGENTS_DIR/$AGENT_ID/AGENTS.md" "$AGENTS_DIR/$AGENT_ID/.claude/CLAUDE.md"
+    # Copy CLAUDE.md template into .claude/
+    if [ -f "$TINYCLAW_CONFIG_HOME/CLAUDE.md" ]; then
+        cp "$TINYCLAW_CONFIG_HOME/CLAUDE.md" "$AGENTS_DIR/$AGENT_ID/.claude/CLAUDE.md"
+        echo "  → Copied CLAUDE.md to .claude/ directory"
+    elif [ -f "$SCRIPT_DIR/templates/CLAUDE.md" ]; then
+        cp "$SCRIPT_DIR/templates/CLAUDE.md" "$AGENTS_DIR/$AGENT_ID/.claude/CLAUDE.md"
         echo "  → Copied CLAUDE.md to .claude/ directory"
     fi
 

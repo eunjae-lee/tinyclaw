@@ -109,16 +109,16 @@ describe('ensureAgentDirectory', () => {
         expect(fs.existsSync(path.join(agentDir, '.claude', 'settings.json'))).toBe(true);
     });
 
-    it('copies heartbeat.md and AGENTS.md', () => {
+    it('copies heartbeat.md and CLAUDE.md template', () => {
         fs.mkdirSync(path.join(scriptDir, 'templates'), { recursive: true });
         fs.writeFileSync(path.join(scriptDir, 'templates', 'heartbeat.md'), '# Heartbeat');
-        fs.writeFileSync(path.join(scriptDir, 'templates', 'AGENTS.md'), '# Agents');
+        fs.writeFileSync(path.join(scriptDir, 'templates', 'CLAUDE.md'), '# Claude');
 
         const agentDir = path.join(tmpDir, 'agent3');
         ensureAgentDirectory(agentDir);
 
         expect(fs.readFileSync(path.join(agentDir, 'heartbeat.md'), 'utf8')).toBe('# Heartbeat');
-        expect(fs.readFileSync(path.join(agentDir, 'AGENTS.md'), 'utf8')).toBe('# Agents');
+        expect(fs.readFileSync(path.join(agentDir, '.claude', 'CLAUDE.md'), 'utf8')).toBe('# Claude');
     });
 
     it('creates .tinyclaw/ with SOUL.md', () => {
@@ -219,42 +219,29 @@ describe('updateAgentTeammates', () => {
         fs.rmSync(tmpDir, { recursive: true, force: true });
     });
 
-    it('injects teammate info between markers in AGENTS.md', () => {
+    it('injects teammate info between markers in .claude/CLAUDE.md', () => {
         const agentDir = path.join(tmpDir, 'coder');
-        fs.mkdirSync(agentDir, { recursive: true });
-        fs.writeFileSync(path.join(agentDir, 'AGENTS.md'),
+        fs.mkdirSync(path.join(agentDir, '.claude'), { recursive: true });
+        fs.writeFileSync(path.join(agentDir, '.claude', 'CLAUDE.md'),
             '# Agents\n<!-- TEAMMATES_START --><!-- TEAMMATES_END -->\n# End');
 
         updateAgentTeammates(agentDir, 'coder', agents, teams);
 
-        const content = fs.readFileSync(path.join(agentDir, 'AGENTS.md'), 'utf8');
+        const content = fs.readFileSync(path.join(agentDir, '.claude', 'CLAUDE.md'), 'utf8');
         expect(content).toContain('@coder');
         expect(content).toContain('@reviewer');
         expect(content).toContain('# End');
     });
 
-    it('writes teammate info to .claude/CLAUDE.md', () => {
-        const agentDir = path.join(tmpDir, 'coder');
-        fs.mkdirSync(path.join(agentDir, '.claude'), { recursive: true });
-        fs.writeFileSync(path.join(agentDir, 'AGENTS.md'),
-            '<!-- TEAMMATES_START --><!-- TEAMMATES_END -->');
-
-        updateAgentTeammates(agentDir, 'coder', agents, teams);
-
-        const claudeMd = fs.readFileSync(path.join(agentDir, '.claude', 'CLAUDE.md'), 'utf8');
-        expect(claudeMd).toContain('TEAMMATES_START');
-        expect(claudeMd).toContain('@reviewer');
-    });
-
     it('handles agent not in any team (no teammates section)', () => {
         const agentDir = path.join(tmpDir, 'writer');
-        fs.mkdirSync(agentDir, { recursive: true });
-        fs.writeFileSync(path.join(agentDir, 'AGENTS.md'),
+        fs.mkdirSync(path.join(agentDir, '.claude'), { recursive: true });
+        fs.writeFileSync(path.join(agentDir, '.claude', 'CLAUDE.md'),
             '<!-- TEAMMATES_START --><!-- TEAMMATES_END -->');
 
         updateAgentTeammates(agentDir, 'writer', agents, teams);
 
-        const content = fs.readFileSync(path.join(agentDir, 'AGENTS.md'), 'utf8');
+        const content = fs.readFileSync(path.join(agentDir, '.claude', 'CLAUDE.md'), 'utf8');
         // Writer is not in devteam, so no teammates
         expect(content).toContain('@writer');
         expect(content).not.toContain('@coder');

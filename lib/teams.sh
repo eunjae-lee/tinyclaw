@@ -200,7 +200,7 @@ team_add() {
        '.teams //= {} | .teams[$id] = { name: $name, agents: $agents, leader_agent: $leader }' \
        "$SETTINGS_FILE" > "$tmp_file" && mv "$tmp_file" "$SETTINGS_FILE"
 
-    # Update AGENTS.md for each member agent
+    # Update CLAUDE.md for each member agent
     for sa in "${SELECTED_AGENTS[@]}"; do
         update_agent_team_info "$sa"
     done
@@ -257,7 +257,7 @@ team_remove() {
     local tmp_file="$SETTINGS_FILE.tmp"
     jq --arg id "$team_id" 'del(.teams[$id])' "$SETTINGS_FILE" > "$tmp_file" && mv "$tmp_file" "$SETTINGS_FILE"
 
-    # Update AGENTS.md for former member agents to remove team section
+    # Update CLAUDE.md for former member agents to remove team section
     for aid in "${member_agents[@]}"; do
         update_agent_team_info "$aid"
     done
@@ -265,7 +265,7 @@ team_remove() {
     echo -e "${GREEN}Team '${team_id}' removed.${NC}"
 }
 
-# Update an agent's AGENTS.md with team collaboration info
+# Update an agent's .claude/CLAUDE.md with team collaboration info
 # Called after team add/remove to keep agent docs in sync
 update_agent_team_info() {
     local agent_id="$1"
@@ -278,7 +278,7 @@ update_agent_team_info() {
         return
     fi
 
-    local agents_md="$agent_dir/AGENTS.md"
+    local agents_md="$agent_dir/.claude/CLAUDE.md"
     if [ ! -f "$agents_md" ]; then
         return
     fi
@@ -326,6 +326,6 @@ update_agent_team_info() {
 
     team_block+="<!-- TINYCLAW_TEAM_END -->"
 
-    # Append team block to AGENTS.md
+    # Append team block to .claude/CLAUDE.md
     echo -e "$team_block" >> "$agents_md"
 }

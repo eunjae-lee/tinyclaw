@@ -24,7 +24,7 @@ export function copyDirSync(src: string, dest: string): void {
 
 /**
  * Ensure agent directory exists with template files copied from TINYCLAW_CONFIG_HOME.
- * Creates directory if it doesn't exist and copies .claude/, templates/heartbeat.md, and AGENTS.md.
+ * Creates directory if it doesn't exist and copies .claude/, templates/heartbeat.md, and CLAUDE.md.
  */
 export function ensureAgentDirectory(agentDir: string): void {
     if (fs.existsSync(agentDir)) {
@@ -47,11 +47,12 @@ export function ensureAgentDirectory(agentDir: string): void {
         fs.copyFileSync(sourceHeartbeat, targetHeartbeat);
     }
 
-    // Copy AGENTS.md
-    const sourceAgents = path.join(SCRIPT_DIR, 'templates', 'AGENTS.md');
-    const targetAgents = path.join(agentDir, 'AGENTS.md');
-    if (fs.existsSync(sourceAgents)) {
-        fs.copyFileSync(sourceAgents, targetAgents);
+    // Copy CLAUDE.md template into .claude/
+    const sourceClaudeMd = path.join(SCRIPT_DIR, 'templates', 'CLAUDE.md');
+    const targetClaudeMd = path.join(agentDir, '.claude', 'CLAUDE.md');
+    if (fs.existsSync(sourceClaudeMd)) {
+        fs.mkdirSync(path.join(agentDir, '.claude'), { recursive: true });
+        fs.copyFileSync(sourceClaudeMd, targetClaudeMd);
     }
 
     // Copy .gitignore
@@ -134,14 +135,15 @@ export function configureApprovalHook(agentDir: string): void {
 }
 
 /**
- * Update the AGENTS.md in an agent's directory with current teammate info.
+ * Update the .claude/CLAUDE.md in an agent's directory with current teammate info.
  * Replaces content between <!-- TEAMMATES_START --> and <!-- TEAMMATES_END --> markers.
  */
 export function updateAgentTeammates(agentDir: string, agentId: string, agents: Record<string, AgentConfig>, teams: Record<string, TeamConfig>): void {
-    const agentsMdPath = path.join(agentDir, 'AGENTS.md');
-    if (!fs.existsSync(agentsMdPath)) return;
+    const claudeDir = path.join(agentDir, '.claude');
+    const claudeMdPath = path.join(claudeDir, 'CLAUDE.md');
+    if (!fs.existsSync(claudeMdPath)) return;
 
-    let content = fs.readFileSync(agentsMdPath, 'utf8');
+    let content = fs.readFileSync(claudeMdPath, 'utf8');
     const startMarker = '<!-- TEAMMATES_START -->';
     const endMarker = '<!-- TEAMMATES_END -->';
     const startIdx = content.indexOf(startMarker);
@@ -174,25 +176,5 @@ export function updateAgentTeammates(agentDir: string, agentId: string, agents: 
     }
 
     const newContent = content.substring(0, startIdx + startMarker.length) + block + content.substring(endIdx);
-    fs.writeFileSync(agentsMdPath, newContent);
-
-    // Also write to .claude/CLAUDE.md
-    const claudeDir = path.join(agentDir, '.claude');
-    if (!fs.existsSync(claudeDir)) {
-        fs.mkdirSync(claudeDir, { recursive: true });
-    }
-    const claudeMdPath = path.join(claudeDir, 'CLAUDE.md');
-    let claudeContent = '';
-    if (fs.existsSync(claudeMdPath)) {
-        claudeContent = fs.readFileSync(claudeMdPath, 'utf8');
-    }
-    const cStartIdx = claudeContent.indexOf(startMarker);
-    const cEndIdx = claudeContent.indexOf(endMarker);
-    if (cStartIdx !== -1 && cEndIdx !== -1) {
-        claudeContent = claudeContent.substring(0, cStartIdx + startMarker.length) + block + claudeContent.substring(cEndIdx);
-    } else {
-        // Append markers + block
-        claudeContent = claudeContent.trimEnd() + '\n\n' + startMarker + block + endMarker + '\n';
-    }
-    fs.writeFileSync(claudeMdPath, claudeContent);
+    fs.writeFileSync(claudeMdPath, newContent);
 }
