@@ -10,7 +10,9 @@
       "Write",
       "Bash(npm install:*)",
       "Bash(npm run:*)",
-      "Bash(tinyclaw memory:*)"
+      "Bash(tinyclaw memory:*)",
+      "Bash(git diff:*)",
+      "Bash(git status:*)"
     ]
   }
 }
