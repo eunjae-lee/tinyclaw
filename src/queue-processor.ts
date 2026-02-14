@@ -20,6 +20,7 @@ import {
 } from './lib/config';
 import { log, emitEvent } from './lib/logging';
 import { processMessage, peekAgentId } from './lib/queue-core';
+import { cleanupStaleSessions } from './lib/session-store';
 
 // Ensure directories exist
 [QUEUE_INCOMING, QUEUE_OUTGOING, QUEUE_PROCESSING, path.dirname(LOG_FILE)].forEach(dir => {
@@ -114,6 +115,9 @@ emitEvent('processor_start', { agents: Object.keys(getAgents(getSettings())), te
 
 // Process queue every 1 second
 setInterval(processQueue, 1000);
+
+// Clean up stale session mappings every 6 hours
+setInterval(() => cleanupStaleSessions(), 6 * 60 * 60 * 1000);
 
 // Graceful shutdown
 process.on('SIGINT', () => {

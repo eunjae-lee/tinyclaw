@@ -22,6 +22,7 @@ import {
 } from '../lib/config';
 import { extractAgentPrefix } from '../lib/routing';
 import { sanitizeFileName, buildUniqueFilePath, splitMessage } from '../lib/discord-utils';
+import { remapSession } from '../lib/session-store';
 
 const LOG_FILE = path.join(TINYCLAW_CONFIG_HOME, 'logs/discord.log');
 const FILES_DIR = path.join(TINYCLAW_CONFIG_HOME, 'files');
@@ -174,7 +175,7 @@ const botOwnedThreads = new Map<string, string | undefined>();
 try {
     const data = JSON.parse(fs.readFileSync(BOT_THREADS_FILE, 'utf8'));
     for (const [id, agent] of Object.entries(data)) {
-        botOwnedThreads.set(id, agent as string | undefined);
+        botOwnedThreads.set(id, (agent as string | null) ?? undefined);
     }
 } catch {
     // No file yet or corrupt — start fresh
@@ -182,9 +183,9 @@ try {
 
 function saveBotOwnedThreads(): void {
     try {
-        const obj: Record<string, string | undefined> = {};
+        const obj: Record<string, string | null> = {};
         for (const [id, agent] of botOwnedThreads) {
-            obj[id] = agent;
+            obj[id] = agent ?? null;
         }
         fs.writeFileSync(BOT_THREADS_FILE, JSON.stringify(obj));
     } catch {
@@ -534,6 +535,8 @@ async function checkOutgoingQueue(): Promise<void> {
                             const parentDefault = da.get(pending.channel.id);
                             botOwnedThreads.set(thread.id, responseData.agent ?? parentDefault);
                             saveBotOwnedThreads();
+                            // Remap session from messageId key to thread.id key
+                            remapSession(messageId, thread.id);
                             targetChannel = thread;
                         } catch (threadErr) {
                             log('WARN', `Failed to create thread, falling back to channel reply: ${(threadErr as Error).message}`);

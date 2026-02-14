@@ -42,10 +42,18 @@ vi.mock('../lib/logging', () => ({
     log: vi.fn(),
 }));
 
+vi.mock('../lib/session-store', () => ({
+    getSession: vi.fn(),
+    createSession: vi.fn(() => 'mock-session-uuid'),
+}));
+
 import { spawn } from 'child_process';
-import { invokeAgent, deterministicUUID } from '../lib/invoke';
+import { invokeAgent } from '../lib/invoke';
+import { getSession, createSession } from '../lib/session-store';
 
 const mockedSpawn = vi.mocked(spawn);
+const mockedGetSession = vi.mocked(getSession);
+const mockedCreateSession = vi.mocked(createSession);
 
 describe('invokeAgent - Claude argument construction', () => {
     beforeEach(() => {
@@ -244,6 +252,27 @@ describe('invokeAgent - Codex provider', () => {
 describe('invokeAgent - session isolation', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        // Restore default spawn mock (mockImplementation leaks across tests)
+        mockedSpawn.mockImplementation((() => {
+            const EventEmitter = require('events');
+            const { Readable } = require('stream');
+
+            const stdout = new Readable({ read() {} });
+            const stderr = new Readable({ read() {} });
+            const child = new EventEmitter();
+            child.stdout = stdout;
+            child.stderr = stderr;
+            child.stdout.setEncoding = vi.fn();
+            child.stderr.setEncoding = vi.fn();
+
+            process.nextTick(() => {
+                stdout.push('mocked response');
+                stdout.push(null);
+                child.emit('close', 0);
+            });
+
+            return child;
+        }) as any);
     });
 
     function getSpawnArgs(callIndex = 0): { command: string; args: string[] } {
@@ -251,7 +280,9 @@ describe('invokeAgent - session isolation', () => {
         return { command: call[0] as string, args: call[1] as string[] };
     }
 
-    it('tries --resume first when sessionKey provided and not resetting', async () => {
+    it('resumes existing session from session-store when sessionKey provided', async () => {
+        mockedGetSession.mockReturnValue({ sessionId: 'stored-uuid-123', agentId: 'coder', createdAt: Date.now() });
+
         const agent: AgentConfig = {
             name: 'Coder',
             provider: 'anthropic',
@@ -261,17 +292,41 @@ describe('invokeAgent - session isolation', () => {
 
         await invokeAgent(agent, 'coder', 'hello', '/tmp/workspace', false, {}, {}, undefined, 'thread_123');
 
+        expect(mockedGetSession).toHaveBeenCalledWith('thread_123');
         const { args } = getSpawnArgs();
         const resumeIndex = args.indexOf('--resume');
         expect(resumeIndex).toBeGreaterThan(-1);
-        const expectedUUID = deterministicUUID('coder:thread_123');
-        expect(args[resumeIndex + 1]).toBe(expectedUUID);
+        expect(args[resumeIndex + 1]).toBe('stored-uuid-123');
         expect(args).not.toContain('-c');
         expect(args).not.toContain('--session-id');
     });
 
-    it('falls back to --session-id when --resume fails', async () => {
-        // First spawn (--resume) fails, second spawn (--session-id) succeeds
+    it('creates new session via createSession when no existing mapping', async () => {
+        mockedGetSession.mockReturnValue(undefined);
+        mockedCreateSession.mockReturnValue('new-uuid-456');
+
+        const agent: AgentConfig = {
+            name: 'Coder',
+            provider: 'anthropic',
+            model: 'sonnet',
+            working_directory: '/tmp/coder',
+        };
+
+        await invokeAgent(agent, 'coder', 'hello', '/tmp/workspace', false, {}, {}, undefined, 'thread_123');
+
+        expect(mockedCreateSession).toHaveBeenCalledWith('thread_123', 'coder');
+        const { args } = getSpawnArgs();
+        const sessionIdIndex = args.indexOf('--session-id');
+        expect(sessionIdIndex).toBeGreaterThan(-1);
+        expect(args[sessionIdIndex + 1]).toBe('new-uuid-456');
+        expect(args).not.toContain('--resume');
+    });
+
+    it('falls back to --session-id when --resume fails with session not found', async () => {
+        mockedGetSession.mockReturnValue({ sessionId: 'old-uuid', agentId: 'coder', createdAt: Date.now() });
+        mockedCreateSession.mockReturnValue('replacement-uuid');
+
+        // First spawn (--resume) fails with "session not found", second spawn succeeds
         let callCount = 0;
         mockedSpawn.mockImplementation((() => {
             const EventEmitter = require('events');
@@ -288,7 +343,6 @@ describe('invokeAgent - session isolation', () => {
             callCount++;
             const isFirstCall = callCount === 1;
 
-            // Use setTimeout to ensure runCommand has attached its listeners
             setTimeout(() => {
                 if (isFirstCall) {
                     stderr.push('Session not found');
@@ -316,17 +370,64 @@ describe('invokeAgent - session isolation', () => {
 
         expect(result).toBe('fallback response');
         expect(mockedSpawn).toHaveBeenCalledTimes(2);
+        expect(mockedCreateSession).toHaveBeenCalledWith('thread_123', 'coder');
 
         // First call used --resume
         const firstArgs = getSpawnArgs(0).args;
         expect(firstArgs).toContain('--resume');
 
-        // Second call used --session-id
+        // Second call used --session-id with new UUID
         const secondArgs = getSpawnArgs(1).args;
         expect(secondArgs).toContain('--session-id');
+        expect(secondArgs[secondArgs.indexOf('--session-id') + 1]).toBe('replacement-uuid');
     });
 
-    it('uses --session-id when resetting with sessionKey', async () => {
+    it('propagates non-session-not-found errors instead of creating new session', async () => {
+        mockedGetSession.mockReturnValue({ sessionId: 'old-uuid', agentId: 'coder', createdAt: Date.now() });
+
+        // Spawn fails with a transient error (e.g. rate limit)
+        mockedSpawn.mockImplementation((() => {
+            const EventEmitter = require('events');
+            const { Readable } = require('stream');
+
+            const stdout = new Readable({ read() {} });
+            const stderr = new Readable({ read() {} });
+            const child = new EventEmitter();
+            child.stdout = stdout;
+            child.stderr = stderr;
+            child.stdout.setEncoding = vi.fn();
+            child.stderr.setEncoding = vi.fn();
+
+            setTimeout(() => {
+                stderr.push('Rate limit exceeded');
+                stderr.push(null);
+                stdout.push(null);
+                child.emit('close', 1);
+            }, 0);
+
+            return child;
+        }) as any);
+
+        const agent: AgentConfig = {
+            name: 'Coder',
+            provider: 'anthropic',
+            model: 'sonnet',
+            working_directory: '/tmp/coder',
+        };
+
+        await expect(
+            invokeAgent(agent, 'coder', 'hello', '/tmp/workspace', false, {}, {}, undefined, 'thread_123')
+        ).rejects.toThrow('Rate limit exceeded');
+
+        // Should NOT have created a new session
+        expect(mockedCreateSession).not.toHaveBeenCalled();
+        // Should only have tried once (no fallback)
+        expect(mockedSpawn).toHaveBeenCalledTimes(1);
+    });
+
+    it('uses --session-id with createSession when resetting with sessionKey', async () => {
+        mockedCreateSession.mockReturnValue('reset-uuid');
+
         const agent: AgentConfig = {
             name: 'Coder',
             provider: 'anthropic',
@@ -336,9 +437,11 @@ describe('invokeAgent - session isolation', () => {
 
         await invokeAgent(agent, 'coder', 'hello', '/tmp/workspace', true, {}, {}, undefined, 'thread_123');
 
+        expect(mockedCreateSession).toHaveBeenCalledWith('thread_123', 'coder');
         const { args } = getSpawnArgs();
         const sessionIdIndex = args.indexOf('--session-id');
         expect(sessionIdIndex).toBeGreaterThan(-1);
+        expect(args[sessionIdIndex + 1]).toBe('reset-uuid');
         expect(args).not.toContain('--resume');
         expect(args).not.toContain('-c');
     });
@@ -373,22 +476,5 @@ describe('invokeAgent - session isolation', () => {
         expect(args).not.toContain('-c');
         expect(args).not.toContain('--resume');
         expect(args).not.toContain('--session-id');
-    });
-
-    it('generates different UUIDs for different agents in the same thread', () => {
-        const uuid1 = deterministicUUID('agent1:thread_123');
-        const uuid2 = deterministicUUID('agent2:thread_123');
-        expect(uuid1).not.toBe(uuid2);
-    });
-
-    it('generates same UUID for same agent and session key', () => {
-        const uuid1 = deterministicUUID('coder:thread_123');
-        const uuid2 = deterministicUUID('coder:thread_123');
-        expect(uuid1).toBe(uuid2);
-    });
-
-    it('generates valid UUID format', () => {
-        const uuid = deterministicUUID('test:key');
-        expect(uuid).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
     });
 });

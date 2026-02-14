@@ -1,5 +1,4 @@
 import { spawn } from 'child_process';
-import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { AgentConfig, TeamConfig, Settings } from './types';
@@ -7,6 +6,7 @@ import { SCRIPT_DIR, TINYCLAW_CONFIG_HOME, resolveClaudeModel, resolveCodexModel
 import { log } from './logging';
 import { ensureAgentDirectory, updateAgentTeammates } from './agent-setup';
 import { getMemoryForInjection, writeMemoryTempFile, cleanupMemoryTmpFiles } from '../memory/read';
+import { getSession, createSession } from './session-store';
 
 export async function runCommand(command: string, args: string[], cwd?: string, env?: Record<string, string>): Promise<string> {
     return new Promise((resolve, reject) => {
@@ -46,20 +46,6 @@ export async function runCommand(command: string, args: string[], cwd?: string, 
     });
 }
 
-/**
- * Generate a deterministic UUID from a string key using SHA-256.
- * Formatted as UUID v4 structure but with deterministic content.
- */
-export function deterministicUUID(key: string): string {
-    const hash = crypto.createHash('sha256').update(key).digest('hex');
-    return [
-        hash.slice(0, 8),
-        hash.slice(8, 12),
-        '4' + hash.slice(13, 16),
-        ((parseInt(hash[16], 16) & 0x3) | 0x8).toString(16) + hash.slice(17, 20),
-        hash.slice(20, 32),
-    ].join('-');
-}
 
 /**
  * Invoke a single agent with a message. Contains all Claude/Codex invocation logic.
@@ -167,22 +153,38 @@ export async function invokeAgent(
         };
 
         if (sessionKey) {
-            const sessionId = deterministicUUID(`${agentId}:${sessionKey}`);
             if (shouldReset) {
-                // Reset: start fresh session with this ID
+                const sessionId = createSession(sessionKey, agentId);
+                log('INFO', `Created new session ${sessionId} for key ${sessionKey} (reset)`);
                 claudeArgs.push('--session-id', sessionId, '-p', message);
                 return await runCommand('claude', claudeArgs, workingDir, env);
             }
 
-            // Try to resume existing session; if it fails (e.g. session doesn't exist), create it
-            const resumeArgs = [...claudeArgs, '--resume', sessionId, '-p', message];
-            try {
-                return await runCommand('claude', resumeArgs, workingDir, env);
-            } catch {
-                log('INFO', `Session ${sessionId} not found, creating new session`);
-                const newArgs = [...claudeArgs, '--session-id', sessionId, '-p', message];
-                return await runCommand('claude', newArgs, workingDir, env);
+            const existing = getSession(sessionKey);
+            if (existing) {
+                // Resume existing session
+                const resumeArgs = [...claudeArgs, '--resume', existing.sessionId, '-p', message];
+                try {
+                    return await runCommand('claude', resumeArgs, workingDir, env);
+                } catch (err) {
+                    const errMsg = (err as Error).message || '';
+                    if (/session.*not found/i.test(errMsg) || /no such session/i.test(errMsg)) {
+                        // Session was deleted/expired — create a new one
+                        const sessionId = createSession(sessionKey, agentId);
+                        log('INFO', `Session ${existing.sessionId} not found, created new session ${sessionId}`);
+                        const newArgs = [...claudeArgs, '--session-id', sessionId, '-p', message];
+                        return await runCommand('claude', newArgs, workingDir, env);
+                    }
+                    // Transient error — propagate instead of destroying the session
+                    throw err;
+                }
             }
+
+            // No existing mapping — create a new session
+            const sessionId = createSession(sessionKey, agentId);
+            log('INFO', `Created new session ${sessionId} for key ${sessionKey}`);
+            claudeArgs.push('--session-id', sessionId, '-p', message);
+            return await runCommand('claude', claudeArgs, workingDir, env);
         }
 
         if (continueConversation) {

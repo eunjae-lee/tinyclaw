@@ -15,6 +15,7 @@ export const MEMORY_TMP_DIR = path.join(TINYCLAW_CONFIG_HOME, 'memory-tmp');
 // Config paths (from TINYCLAW_CONFIG_HOME)
 export const SETTINGS_FILE = path.join(TINYCLAW_CONFIG_HOME, 'settings.json');
 export const CREDENTIALS_FILE = path.join(TINYCLAW_CONFIG_HOME, 'credentials.json');
+export const THREAD_SESSIONS_FILE = path.join(TINYCLAW_CONFIG_HOME, 'thread-sessions.json');
 
 // Runtime/data paths (from TINYCLAW_CONFIG_HOME — these are operational data, not agent workspaces)
 export const QUEUE_INCOMING = path.join(TINYCLAW_CONFIG_HOME, 'queue/incoming');

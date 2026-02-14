@@ -98,6 +98,12 @@ export interface QueueFile {
     time: number;
 }
 
+export interface SessionMapping {
+    sessionId: string;
+    agentId: string;
+    createdAt: number;
+}
+
 // Model name mapping
 export const CLAUDE_MODEL_IDS: Record<string, string> = {
     'sonnet': 'claude-sonnet-4-5',
