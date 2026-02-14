@@ -26,6 +26,7 @@ import { sanitizeFileName, buildUniqueFilePath, splitMessage } from '../lib/disc
 const LOG_FILE = path.join(TINYCLAW_CONFIG_HOME, 'logs/discord.log');
 const FILES_DIR = path.join(TINYCLAW_CONFIG_HOME, 'files');
 const BOT_THREADS_FILE = path.join(TINYCLAW_CONFIG_HOME, 'bot-threads.json');
+const PENDING_MESSAGES_FILE = path.join(TINYCLAW_CONFIG_HOME, 'pending-messages.json');
 
 // Ensure directories exist
 [QUEUE_INCOMING, QUEUE_OUTGOING, path.dirname(LOG_FILE), FILES_DIR, APPROVALS_PENDING, APPROVALS_DECISIONS].forEach(dir => {
@@ -44,6 +45,14 @@ if (!DISCORD_BOT_TOKEN || DISCORD_BOT_TOKEN === 'your_token_here') {
 interface PendingMessage {
     message: Message;
     channel: DMChannel | TextChannel | ThreadChannel;
+    timestamp: number;
+    needsThread: boolean;
+}
+
+// Serializable version of PendingMessage for disk persistence
+interface SerializedPendingMessage {
+    channelId: string;
+    messageId: string; // Discord message ID (not our queue messageId)
     timestamp: number;
     needsThread: boolean;
 }
@@ -103,6 +112,59 @@ function downloadFile(url: string, destPath: string): Promise<void> {
 // Track pending messages (waiting for response)
 const pendingMessages = new Map<string, PendingMessage>();
 let processingOutgoingQueue = false;
+
+// Persist pending messages to disk so they survive restarts
+function savePendingMessages(): void {
+    try {
+        const obj: Record<string, SerializedPendingMessage> = {};
+        for (const [id, pm] of pendingMessages) {
+            obj[id] = {
+                channelId: pm.channel.id,
+                messageId: pm.message.id,
+                timestamp: pm.timestamp,
+                needsThread: pm.needsThread,
+            };
+        }
+        fs.writeFileSync(PENDING_MESSAGES_FILE, JSON.stringify(obj));
+    } catch {
+        // Best-effort
+    }
+}
+
+// Restore pending messages from disk after the client is ready
+async function restorePendingMessages(): Promise<void> {
+    let data: Record<string, SerializedPendingMessage>;
+    try {
+        data = JSON.parse(fs.readFileSync(PENDING_MESSAGES_FILE, 'utf8'));
+    } catch {
+        return; // No file or corrupt
+    }
+
+    const threeDaysAgo = Date.now() - (3 * 24 * 60 * 60 * 1000);
+
+    for (const [queueMsgId, saved] of Object.entries(data)) {
+        if (saved.timestamp < threeDaysAgo) continue; // Skip expired
+
+        try {
+            const channel = await client.channels.fetch(saved.channelId);
+            if (!channel || !channel.isTextBased()) continue;
+
+            const message = await (channel as TextChannel | ThreadChannel | DMChannel).messages.fetch(saved.messageId);
+            if (!message) continue;
+
+            pendingMessages.set(queueMsgId, {
+                message,
+                channel: channel as DMChannel | TextChannel | ThreadChannel,
+                timestamp: saved.timestamp,
+                needsThread: saved.needsThread,
+            });
+        } catch {
+            // Channel or message no longer accessible — skip
+        }
+    }
+
+    log('INFO', `Restored ${pendingMessages.size} pending message(s) from disk`);
+}
 
 // Track threads created by the bot — persisted to disk so it survives restarts.
 // Maps thread ID → agent ID extracted from the starter message (or undefined for default agent)
@@ -232,9 +294,10 @@ const client = new Client({
 });
 
 // Client ready
-client.on(Events.ClientReady, (readyClient) => {
+client.on(Events.ClientReady, async (readyClient) => {
     log('INFO', `Discord bot connected as ${readyClient.user.tag}`);
     log('INFO', 'Listening for DMs and server messages...');
+    await restorePendingMessages();
 });
 
 // Message received - Write to queue
@@ -418,13 +481,16 @@ client.on(Events.MessageCreate, async (message: Message) => {
             needsThread: needsThread,
         });
 
-        // Clean up old pending messages (older than 10 minutes)
-        const tenMinutesAgo = Date.now() - (10 * 60 * 1000);
+        // Clean up old pending messages (older than 3 days)
+        const threeDaysAgo = Date.now() - (3 * 24 * 60 * 60 * 1000);
         for (const [id, data] of pendingMessages.entries()) {
-            if (data.timestamp < tenMinutesAgo) {
+            if (data.timestamp < threeDaysAgo) {
                 pendingMessages.delete(id);
             }
         }
+
+        // Persist to disk
+        savePendingMessages();
 
     } catch (error) {
         log('ERROR', `Message handling error: ${(error as Error).message}`);
@@ -521,6 +587,7 @@ async function checkOutgoingQueue(): Promise<void> {
 
                     // Clean up
                     pendingMessages.delete(messageId);
+                    savePendingMessages();
                     fs.unlinkSync(filePath);
                 } else {
                     // Message too old or already processed
