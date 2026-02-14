@@ -3,12 +3,12 @@ import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { AgentConfig, TeamConfig, Settings } from './types';
-import { SCRIPT_DIR, TINYCLAW_CONFIG_HOME, resolveClaudeModel, resolveCodexModel } from './config';
+import { SCRIPT_DIR, TINYCLAW_CONFIG_HOME, CLI_TIMEOUT_MS, resolveClaudeModel, resolveCodexModel } from './config';
 import { log } from './logging';
 import { ensureAgentDirectory, updateAgentTeammates } from './agent-setup';
 import { getMemoryForInjection, writeMemoryTempFile, cleanupMemoryTmpFiles } from '../memory/read';
 
-export async function runCommand(command: string, args: string[], cwd?: string, env?: Record<string, string>): Promise<string> {
+export async function runCommand(command: string, args: string[], cwd?: string, env?: Record<string, string>, timeoutMs?: number): Promise<string> {
     return new Promise((resolve, reject) => {
         const child = spawn(command, args, {
             cwd: cwd || SCRIPT_DIR,
@@ -18,6 +18,19 @@ export async function runCommand(command: string, args: string[], cwd?: string, 
 
         let stdout = '';
         let stderr = '';
+        let timedOut = false;
+
+        const effectiveTimeout = timeoutMs ?? CLI_TIMEOUT_MS;
+        const timer = setTimeout(() => {
+            timedOut = true;
+            child.kill('SIGTERM');
+            // Force kill after 5 seconds if SIGTERM doesn't work
+            setTimeout(() => {
+                if (!child.killed) {
+                    child.kill('SIGKILL');
+                }
+            }, 5000);
+        }, effectiveTimeout);
 
         child.stdout.setEncoding('utf8');
         child.stderr.setEncoding('utf8');
@@ -31,10 +44,16 @@ export async function runCommand(command: string, args: string[], cwd?: string, 
         });
 
         child.on('error', (error) => {
+            clearTimeout(timer);
             reject(error);
         });
 
         child.on('close', (code) => {
+            clearTimeout(timer);
+            if (timedOut) {
+                reject(new Error(`Command timed out after ${effectiveTimeout}ms`));
+                return;
+            }
             if (code === 0) {
                 resolve(stdout);
                 return;
@@ -178,10 +197,16 @@ export async function invokeAgent(
             const resumeArgs = [...claudeArgs, '--resume', sessionId, '-p', message];
             try {
                 return await runCommand('claude', resumeArgs, workingDir, env);
-            } catch {
+            } catch (resumeError) {
                 log('INFO', `Session ${sessionId} not found, creating new session`);
                 const newArgs = [...claudeArgs, '--session-id', sessionId, '-p', message];
-                return await runCommand('claude', newArgs, workingDir, env);
+                try {
+                    return await runCommand('claude', newArgs, workingDir, env);
+                } catch (newSessionError) {
+                    const errMsg = (newSessionError as Error).message || '';
+                    log('ERROR', `Both --resume and --session-id failed for session ${sessionId}: ${errMsg}`);
+                    throw new Error(`Session ${sessionId} failed (resume + new): ${errMsg}`);
+                }
             }
         }
 

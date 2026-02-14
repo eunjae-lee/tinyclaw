@@ -14,15 +14,15 @@ import fs from 'fs';
 import path from 'path';
 import { QueueFile } from './lib/types';
 import {
-    QUEUE_INCOMING, QUEUE_OUTGOING, QUEUE_PROCESSING,
+    QUEUE_INCOMING, QUEUE_OUTGOING, QUEUE_PROCESSING, QUEUE_DEAD_LETTER,
     LOG_FILE, EVENTS_DIR,
     getSettings, getAgents, getTeams
 } from './lib/config';
 import { log, emitEvent } from './lib/logging';
-import { processMessage, peekAgentId } from './lib/queue-core';
+import { processMessage, peekAgentId, recoverStuckFiles } from './lib/queue-core';
 
 // Ensure directories exist
-[QUEUE_INCOMING, QUEUE_OUTGOING, QUEUE_PROCESSING, path.dirname(LOG_FILE)].forEach(dir => {
+[QUEUE_INCOMING, QUEUE_OUTGOING, QUEUE_PROCESSING, QUEUE_DEAD_LETTER, path.dirname(LOG_FILE)].forEach(dir => {
     if (!fs.existsSync(dir)) {
         fs.mkdirSync(dir, { recursive: true });
     }
@@ -112,8 +112,17 @@ log('INFO', `Watching: ${QUEUE_INCOMING}`);
 logAgentConfig();
 emitEvent('processor_start', { agents: Object.keys(getAgents(getSettings())), teams: Object.keys(getTeams(getSettings())) });
 
+// Recover any files stuck in processing from a previous crash
+const recoveredCount = recoverStuckFiles();
+if (recoveredCount > 0) {
+    log('INFO', `Recovered ${recoveredCount} stuck file(s) from processing directory`);
+}
+
 // Process queue every 1 second
 setInterval(processQueue, 1000);
+
+// Periodically check for stuck files (every 60 seconds)
+setInterval(() => recoverStuckFiles(), 60 * 1000);
 
 // Graceful shutdown
 process.on('SIGINT', () => {

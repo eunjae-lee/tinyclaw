@@ -43,7 +43,7 @@ vi.mock('../lib/logging', () => ({
 }));
 
 import { spawn } from 'child_process';
-import { invokeAgent, deterministicUUID } from '../lib/invoke';
+import { invokeAgent, deterministicUUID, runCommand } from '../lib/invoke';
 
 const mockedSpawn = vi.mocked(spawn);
 
@@ -390,5 +390,140 @@ describe('invokeAgent - session isolation', () => {
     it('generates valid UUID format', () => {
         const uuid = deterministicUUID('test:key');
         expect(uuid).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    });
+
+    it('throws clear error when both resume and new session fail', async () => {
+        mockedSpawn.mockImplementation((() => {
+            const EventEmitter = require('events');
+            const { Readable } = require('stream');
+
+            const stdout = new Readable({ read() {} });
+            const stderr = new Readable({ read() {} });
+            const child = new EventEmitter();
+            child.stdout = stdout;
+            child.stderr = stderr;
+            child.stdout.setEncoding = vi.fn();
+            child.stderr.setEncoding = vi.fn();
+
+            setTimeout(() => {
+                stderr.push('Some failure');
+                stderr.push(null);
+                stdout.push(null);
+                child.emit('close', 1);
+            }, 0);
+
+            return child;
+        }) as any);
+
+        const agent: AgentConfig = {
+            name: 'Coder',
+            provider: 'anthropic',
+            model: 'sonnet',
+            working_directory: '/tmp/coder',
+        };
+
+        await expect(
+            invokeAgent(agent, 'coder', 'hello', '/tmp/workspace', false, {}, {}, undefined, 'thread_999')
+        ).rejects.toThrow(/Session .* failed \(resume \+ new\)/);
+
+        // Both resume and session-id attempts should have been made
+        expect(mockedSpawn).toHaveBeenCalledTimes(2);
+    });
+});
+
+describe('runCommand - timeout', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+    });
+
+    it('rejects with timeout error when command exceeds timeout', async () => {
+        const killFn = vi.fn();
+
+        mockedSpawn.mockImplementation((() => {
+            const EventEmitter = require('events');
+            const { Readable } = require('stream');
+
+            const stdout = new Readable({ read() {} });
+            const stderr = new Readable({ read() {} });
+            const child = new EventEmitter();
+            child.stdout = stdout;
+            child.stderr = stderr;
+            child.stdout.setEncoding = vi.fn();
+            child.stderr.setEncoding = vi.fn();
+            child.killed = false;
+            child.kill = killFn.mockImplementation(() => {
+                child.killed = true;
+                process.nextTick(() => {
+                    stdout.push(null);
+                    child.emit('close', null);
+                });
+            });
+
+            // Never emit close — simulate a hanging process
+            return child;
+        }) as any);
+
+        await expect(runCommand('claude', ['-p', 'test'], undefined, undefined, 100))
+            .rejects.toThrow('Command timed out after 100ms');
+    });
+
+    it('resolves normally when command completes before timeout', async () => {
+        mockedSpawn.mockImplementation(() => {
+            const EventEmitter = require('events');
+            const { Readable } = require('stream');
+
+            const stdout = new Readable({ read() {} });
+            const stderr = new Readable({ read() {} });
+            const child = new EventEmitter();
+            child.stdout = stdout;
+            child.stderr = stderr;
+            child.stdout.setEncoding = vi.fn();
+            child.stderr.setEncoding = vi.fn();
+            child.kill = vi.fn();
+            child.killed = false;
+
+            setTimeout(() => {
+                stdout.push('fast response');
+                stdout.push(null);
+                child.emit('close', 0);
+            }, 0);
+
+            return child;
+        });
+
+        const result = await runCommand('claude', ['-p', 'test'], undefined, undefined, 5000);
+        expect(result).toBe('fast response');
+    });
+
+    it('calls kill(SIGTERM) on the child process when timeout fires', async () => {
+        const killFn = vi.fn();
+
+        mockedSpawn.mockImplementation((() => {
+            const EventEmitter = require('events');
+            const { Readable } = require('stream');
+
+            const stdout = new Readable({ read() {} });
+            const stderr = new Readable({ read() {} });
+            const child = new EventEmitter();
+            child.stdout = stdout;
+            child.stderr = stderr;
+            child.stdout.setEncoding = vi.fn();
+            child.stderr.setEncoding = vi.fn();
+            child.killed = false;
+            child.kill = killFn.mockImplementation(() => {
+                child.killed = true;
+                process.nextTick(() => {
+                    stdout.push(null);
+                    child.emit('close', null);
+                });
+            });
+
+            return child;
+        }) as any);
+
+        await expect(runCommand('claude', ['-p', 'test'], undefined, undefined, 50))
+            .rejects.toThrow('timed out');
+
+        expect(killFn).toHaveBeenCalledWith('SIGTERM');
     });
 });

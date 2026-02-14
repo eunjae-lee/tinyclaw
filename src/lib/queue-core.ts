@@ -8,7 +8,8 @@ import fs from 'fs';
 import path from 'path';
 import { MessageData, ResponseData, ChainStep, TeamConfig } from './types';
 import {
-    QUEUE_OUTGOING, QUEUE_PROCESSING,
+    QUEUE_INCOMING, QUEUE_OUTGOING, QUEUE_PROCESSING,
+    QUEUE_DEAD_LETTER, MAX_RETRY_COUNT,
     RESET_FLAG, CHATS_DIR,
     TINYCLAW_CONFIG_WORKSPACE,
     getSettings, getAgents, getTeams
@@ -354,15 +355,96 @@ export async function processMessage(messageFile: string): Promise<void> {
     } catch (error) {
         log('ERROR', `Processing error: ${(error as Error).message}`);
 
-        // Move back to incoming for retry
+        // Move back to incoming for retry, or to dead-letter if retries exhausted
         if (fs.existsSync(processingFile)) {
             try {
-                fs.renameSync(processingFile, messageFile);
+                let messageData: MessageData;
+                try {
+                    messageData = JSON.parse(fs.readFileSync(processingFile, 'utf8'));
+                } catch {
+                    messageData = { channel: 'unknown', sender: 'unknown', message: '', timestamp: 0, messageId: 'unknown' };
+                }
+
+                const retryCount = (messageData.retryCount || 0) + 1;
+
+                if (retryCount >= MAX_RETRY_COUNT) {
+                    // Move to dead-letter directory
+                    if (!fs.existsSync(QUEUE_DEAD_LETTER)) {
+                        fs.mkdirSync(QUEUE_DEAD_LETTER, { recursive: true });
+                    }
+                    const deadLetterFile = path.join(QUEUE_DEAD_LETTER, path.basename(processingFile));
+                    messageData.retryCount = retryCount;
+                    fs.writeFileSync(deadLetterFile, JSON.stringify(messageData, null, 2));
+                    fs.unlinkSync(processingFile);
+                    log('ERROR', `Message moved to dead-letter after ${retryCount} retries: ${path.basename(processingFile)} — ${(error as Error).message}`);
+                } else {
+                    // Increment retry count and move back to incoming
+                    messageData.retryCount = retryCount;
+                    fs.writeFileSync(processingFile, JSON.stringify(messageData, null, 2));
+                    fs.renameSync(processingFile, messageFile);
+                    log('WARN', `Message returned to incoming (retry ${retryCount}/${MAX_RETRY_COUNT}): ${path.basename(processingFile)}`);
+                }
             } catch (e) {
-                log('ERROR', `Failed to move file back: ${(e as Error).message}`);
+                log('ERROR', `Failed to handle retry/dead-letter: ${(e as Error).message}`);
             }
         }
     }
+}
+
+/**
+ * Recover files stuck in the processing directory.
+ * Files older than the threshold are moved back to incoming with retryCount incremented,
+ * or to dead-letter if retries are exhausted.
+ * Called on startup and periodically by the queue processor.
+ */
+export function recoverStuckFiles(staleThresholdMs: number = 15 * 60 * 1000): number {
+    let recovered = 0;
+    try {
+        if (!fs.existsSync(QUEUE_PROCESSING)) return 0;
+
+        const files = fs.readdirSync(QUEUE_PROCESSING).filter(f => f.endsWith('.json'));
+        const now = Date.now();
+
+        for (const file of files) {
+            const filePath = path.join(QUEUE_PROCESSING, file);
+            try {
+                const stat = fs.statSync(filePath);
+                if (now - stat.mtimeMs > staleThresholdMs) {
+                    let messageData: MessageData;
+                    try {
+                        messageData = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+                    } catch {
+                        messageData = { channel: 'unknown', sender: 'unknown', message: '', timestamp: 0, messageId: 'unknown' };
+                    }
+
+                    const retryCount = (messageData.retryCount || 0) + 1;
+
+                    if (retryCount >= MAX_RETRY_COUNT) {
+                        if (!fs.existsSync(QUEUE_DEAD_LETTER)) {
+                            fs.mkdirSync(QUEUE_DEAD_LETTER, { recursive: true });
+                        }
+                        messageData.retryCount = retryCount;
+                        const deadLetterFile = path.join(QUEUE_DEAD_LETTER, file);
+                        fs.writeFileSync(deadLetterFile, JSON.stringify(messageData, null, 2));
+                        fs.unlinkSync(filePath);
+                        log('WARN', `Stuck file moved to dead-letter (retry ${retryCount}/${MAX_RETRY_COUNT}): ${file}`);
+                    } else {
+                        messageData.retryCount = retryCount;
+                        const incomingFile = path.join(QUEUE_INCOMING, file);
+                        fs.writeFileSync(incomingFile, JSON.stringify(messageData, null, 2));
+                        fs.unlinkSync(filePath);
+                        log('WARN', `Recovered stuck file (retry ${retryCount}/${MAX_RETRY_COUNT}): ${file}`);
+                    }
+                    recovered++;
+                }
+            } catch (e) {
+                log('ERROR', `Failed to recover stuck file ${file}: ${(e as Error).message}`);
+            }
+        }
+    } catch (e) {
+        log('ERROR', `recoverStuckFiles error: ${(e as Error).message}`);
+    }
+    return recovered;
 }
 
 /**
