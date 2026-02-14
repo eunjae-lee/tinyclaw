@@ -79,6 +79,7 @@ export interface MessageData {
     agent?: string; // optional: pre-routed agent id from channel client
     files?: string[];
     sessionKey?: string; // per-thread/DM session isolation key
+    retryCount?: number; // tracks processing retry attempts
 }
 
 export interface ResponseData {

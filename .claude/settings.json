@@ -14,7 +14,9 @@
       "Bash(git diff:*)",
       "Bash(git status:*)",
       "Bash(git log:*)",
-      "Bash(git show:*)"
+      "Bash(git show:*)",
+      "Bash(head:*)",
+      "Bash(grep:*)"
     ]
   }
 }

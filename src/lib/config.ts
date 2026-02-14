@@ -28,6 +28,11 @@ export const CHATS_DIR = path.join(TINYCLAW_CONFIG_HOME, 'chats');
 export const APPROVALS_DIR = path.join(TINYCLAW_CONFIG_HOME, 'approvals');
 export const APPROVALS_PENDING = path.join(APPROVALS_DIR, 'pending');
 export const APPROVALS_DECISIONS = path.join(APPROVALS_DIR, 'decisions');
+export const QUEUE_DEAD_LETTER = path.join(TINYCLAW_CONFIG_HOME, 'queue/dead-letter');
+
+// Safety constants
+export const CLI_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+export const MAX_RETRY_COUNT = 3;
 
 export function getSettings(): Settings {
     try {

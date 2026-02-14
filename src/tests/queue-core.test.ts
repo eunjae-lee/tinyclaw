@@ -8,6 +8,8 @@ vi.mock('../lib/config', () => ({
     QUEUE_INCOMING: '/mock/queue/incoming',
     QUEUE_OUTGOING: '/mock/queue/outgoing',
     QUEUE_PROCESSING: '/mock/queue/processing',
+    QUEUE_DEAD_LETTER: '/mock/queue/dead-letter',
+    MAX_RETRY_COUNT: 3,
     LOG_FILE: '/mock/logs/queue.log',
     RESET_FLAG: '/mock/reset_flag',
     EVENTS_DIR: '/mock/events',
@@ -36,7 +38,7 @@ vi.mock('../lib/invoke', () => ({
 // Don't mock routing — use real routing logic
 // Don't mock fs — we use real temp dirs
 
-import { processMessage, peekAgentId } from '../lib/queue-core';
+import { processMessage, peekAgentId, recoverStuckFiles } from '../lib/queue-core';
 import { getSettings, getAgents, getTeams } from '../lib/config';
 import { invokeAgent } from '../lib/invoke';
 
@@ -45,6 +47,7 @@ describe('processMessage', () => {
     let incomingDir: string;
     let processingDir: string;
     let outgoingDir: string;
+    let deadLetterDir: string;
 
     beforeEach(async () => {
         vi.clearAllMocks();
@@ -53,14 +56,19 @@ describe('processMessage', () => {
         incomingDir = path.join(tmpDir, 'incoming');
         processingDir = path.join(tmpDir, 'processing');
         outgoingDir = path.join(tmpDir, 'outgoing');
+        deadLetterDir = path.join(tmpDir, 'dead-letter');
         fs.mkdirSync(incomingDir, { recursive: true });
         fs.mkdirSync(processingDir, { recursive: true });
         fs.mkdirSync(outgoingDir, { recursive: true });
+        fs.mkdirSync(deadLetterDir, { recursive: true });
 
         // Override the QUEUE_* constants used by queue-core via the mock
         const configMock = await import('../lib/config');
+        (configMock as any).QUEUE_INCOMING = incomingDir;
         (configMock as any).QUEUE_PROCESSING = processingDir;
         (configMock as any).QUEUE_OUTGOING = outgoingDir;
+        (configMock as any).QUEUE_DEAD_LETTER = deadLetterDir;
+        (configMock as any).MAX_RETRY_COUNT = 3;
         (configMock as any).RESET_FLAG = path.join(tmpDir, 'reset_flag');
         (configMock as any).CHATS_DIR = path.join(tmpDir, 'chats');
         (configMock as any).TINYCLAW_CONFIG_WORKSPACE = path.join(tmpDir, 'workspace');
@@ -377,5 +385,182 @@ describe('peekAgentId', () => {
         const fp = path.join(tmpDir, 'bad.json');
         fs.writeFileSync(fp, 'not json');
         expect(peekAgentId(fp)).toBe('default');
+    });
+});
+
+describe('processMessage - retry and dead-letter', () => {
+    let tmpDir: string;
+    let incomingDir: string;
+    let processingDir: string;
+    let outgoingDir: string;
+    let deadLetterDir: string;
+
+    beforeEach(async () => {
+        vi.clearAllMocks();
+
+        tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'retry-test-'));
+        incomingDir = path.join(tmpDir, 'incoming');
+        processingDir = path.join(tmpDir, 'processing');
+        outgoingDir = path.join(tmpDir, 'outgoing');
+        deadLetterDir = path.join(tmpDir, 'dead-letter');
+        fs.mkdirSync(incomingDir, { recursive: true });
+        fs.mkdirSync(processingDir, { recursive: true });
+        fs.mkdirSync(outgoingDir, { recursive: true });
+        fs.mkdirSync(deadLetterDir, { recursive: true });
+
+        const configMock = await import('../lib/config');
+        (configMock as any).QUEUE_INCOMING = incomingDir;
+        (configMock as any).QUEUE_PROCESSING = processingDir;
+        (configMock as any).QUEUE_OUTGOING = outgoingDir;
+        (configMock as any).QUEUE_DEAD_LETTER = deadLetterDir;
+        (configMock as any).MAX_RETRY_COUNT = 3;
+        (configMock as any).RESET_FLAG = path.join(tmpDir, 'reset_flag');
+        (configMock as any).CHATS_DIR = path.join(tmpDir, 'chats');
+        (configMock as any).TINYCLAW_CONFIG_WORKSPACE = path.join(tmpDir, 'workspace');
+
+        // Make getSettings throw to trigger the outer catch block in processMessage
+        vi.mocked(getSettings).mockImplementation(() => { throw new Error('Settings corrupt'); });
+    });
+
+    afterEach(() => {
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+    });
+
+    function writeMessage(data: Record<string, unknown>): string {
+        const filename = `discord_test_${Date.now()}.json`;
+        const filePath = path.join(incomingDir, filename);
+        fs.writeFileSync(filePath, JSON.stringify({
+            channel: 'discord',
+            sender: 'testuser',
+            message: 'hello',
+            timestamp: Date.now(),
+            messageId: 'msg_retry',
+            ...data,
+        }));
+        return filePath;
+    }
+
+    it('increments retryCount on processing error and moves back to incoming', async () => {
+        const msgFile = writeMessage({ message: 'hello' });
+        await processMessage(msgFile);
+
+        const incomingFiles = fs.readdirSync(incomingDir);
+        expect(incomingFiles).toHaveLength(1);
+        const data = JSON.parse(fs.readFileSync(path.join(incomingDir, incomingFiles[0]), 'utf8'));
+        expect(data.retryCount).toBe(1);
+    });
+
+    it('treats missing retryCount as 0 (first retry becomes 1)', async () => {
+        const msgFile = writeMessage({ message: 'hello' }); // no retryCount field
+        await processMessage(msgFile);
+
+        const incomingFiles = fs.readdirSync(incomingDir);
+        expect(incomingFiles).toHaveLength(1);
+        const data = JSON.parse(fs.readFileSync(path.join(incomingDir, incomingFiles[0]), 'utf8'));
+        expect(data.retryCount).toBe(1);
+    });
+
+    it('moves message to dead-letter after max retries', async () => {
+        // Message already at retryCount=2, one more failure = 3 = MAX_RETRY_COUNT
+        const msgFile = writeMessage({ message: 'hello', retryCount: 2 });
+        await processMessage(msgFile);
+
+        // Should NOT be in incoming
+        expect(fs.readdirSync(incomingDir)).toHaveLength(0);
+        // Should NOT be in processing
+        expect(fs.readdirSync(processingDir)).toHaveLength(0);
+        // Should be in dead-letter
+        const dlFiles = fs.readdirSync(deadLetterDir);
+        expect(dlFiles).toHaveLength(1);
+        const data = JSON.parse(fs.readFileSync(path.join(deadLetterDir, dlFiles[0]), 'utf8'));
+        expect(data.retryCount).toBe(3);
+    });
+});
+
+describe('recoverStuckFiles', () => {
+    let tmpDir: string;
+    let incomingDir: string;
+    let processingDir: string;
+    let deadLetterDir: string;
+
+    beforeEach(async () => {
+        vi.clearAllMocks();
+
+        tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'recover-test-'));
+        incomingDir = path.join(tmpDir, 'incoming');
+        processingDir = path.join(tmpDir, 'processing');
+        deadLetterDir = path.join(tmpDir, 'dead-letter');
+        fs.mkdirSync(incomingDir, { recursive: true });
+        fs.mkdirSync(processingDir, { recursive: true });
+        fs.mkdirSync(deadLetterDir, { recursive: true });
+
+        const configMock = await import('../lib/config');
+        (configMock as any).QUEUE_INCOMING = incomingDir;
+        (configMock as any).QUEUE_PROCESSING = processingDir;
+        (configMock as any).QUEUE_DEAD_LETTER = deadLetterDir;
+        (configMock as any).MAX_RETRY_COUNT = 3;
+    });
+
+    afterEach(() => {
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+    });
+
+    function writeStuckFile(data: Record<string, unknown>, ageMs: number): string {
+        const filename = `discord_test_${Date.now()}.json`;
+        const filePath = path.join(processingDir, filename);
+        fs.writeFileSync(filePath, JSON.stringify({
+            channel: 'discord',
+            sender: 'testuser',
+            message: 'hello',
+            timestamp: Date.now(),
+            messageId: 'msg_stuck',
+            ...data,
+        }));
+        // Backdate the file modification time
+        const pastTime = new Date(Date.now() - ageMs);
+        fs.utimesSync(filePath, pastTime, pastTime);
+        return filePath;
+    }
+
+    it('recovers files older than threshold back to incoming', () => {
+        writeStuckFile({ message: 'stuck message' }, 20 * 60 * 1000); // 20 min old
+
+        const recovered = recoverStuckFiles(15 * 60 * 1000); // 15 min threshold
+
+        expect(recovered).toBe(1);
+        expect(fs.readdirSync(processingDir)).toHaveLength(0);
+        const incomingFiles = fs.readdirSync(incomingDir);
+        expect(incomingFiles).toHaveLength(1);
+        const data = JSON.parse(fs.readFileSync(path.join(incomingDir, incomingFiles[0]), 'utf8'));
+        expect(data.retryCount).toBe(1);
+    });
+
+    it('does not touch files newer than threshold', () => {
+        writeStuckFile({ message: 'recent message' }, 5 * 60 * 1000); // 5 min old
+
+        const recovered = recoverStuckFiles(15 * 60 * 1000);
+
+        expect(recovered).toBe(0);
+        expect(fs.readdirSync(processingDir)).toHaveLength(1);
+        expect(fs.readdirSync(incomingDir)).toHaveLength(0);
+    });
+
+    it('moves to dead-letter when retryCount reaches max', () => {
+        writeStuckFile({ message: 'doomed', retryCount: 2 }, 20 * 60 * 1000);
+
+        const recovered = recoverStuckFiles(15 * 60 * 1000);
+
+        expect(recovered).toBe(1);
+        expect(fs.readdirSync(processingDir)).toHaveLength(0);
+        expect(fs.readdirSync(incomingDir)).toHaveLength(0);
+        const dlFiles = fs.readdirSync(deadLetterDir);
+        expect(dlFiles).toHaveLength(1);
+        const data = JSON.parse(fs.readFileSync(path.join(deadLetterDir, dlFiles[0]), 'utf8'));
+        expect(data.retryCount).toBe(3);
+    });
+
+    it('returns 0 when processing directory is empty', () => {
+        const recovered = recoverStuckFiles(15 * 60 * 1000);
+        expect(recovered).toBe(0);
     });
 });

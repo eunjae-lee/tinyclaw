@@ -482,10 +482,12 @@ client.on(Events.MessageCreate, async (message: Message) => {
             needsThread: needsThread,
         });
 
-        // Clean up old pending messages (older than 3 days)
-        const threeDaysAgo = Date.now() - (3 * 24 * 60 * 60 * 1000);
+        // Clean up old pending messages (older than 15 minutes — CLI timeout + buffer)
+        const pendingTimeoutMs = 15 * 60 * 1000;
+        const cutoff = Date.now() - pendingTimeoutMs;
         for (const [id, data] of pendingMessages.entries()) {
-            if (data.timestamp < threeDaysAgo) {
+            if (data.timestamp < cutoff) {
+                log('WARN', `Pending message ${id} expired after ${pendingTimeoutMs / 60000} minutes`);
                 pendingMessages.delete(id);
             }
         }
@@ -495,6 +497,12 @@ client.on(Events.MessageCreate, async (message: Message) => {
 
     } catch (error) {
         log('ERROR', `Message handling error: ${(error as Error).message}`);
+        // Attempt to notify the user that something went wrong
+        try {
+            await message.reply('Sorry, something went wrong while processing your message. Please try again.');
+        } catch (replyError) {
+            log('ERROR', `Failed to send error reply: ${(replyError as Error).message}`);
+        }
     }
 });
 
@@ -593,8 +601,9 @@ async function checkOutgoingQueue(): Promise<void> {
                     savePendingMessages();
                     fs.unlinkSync(filePath);
                 } else {
-                    // Message too old or already processed
-                    log('WARN', `No pending message for ${messageId}, cleaning up`);
+                    // Message expired from pending map or already processed
+                    log('WARN', `No pending message for ${messageId} (sender: ${sender}), response discarded. ` +
+                        `Response was ${responseText.length} chars. This may indicate the CLI took longer than the pending timeout.`);
                     fs.unlinkSync(filePath);
                 }
             } catch (error) {
