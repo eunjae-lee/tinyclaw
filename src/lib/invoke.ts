@@ -46,6 +46,18 @@ export async function runCommand(command: string, args: string[], cwd?: string, 
 }
 
 /**
+ * Check if a Claude session file exists on disk.
+ * Claude stores sessions at ~/.claude/projects/<project-hash>/<session-id>.jsonl
+ * where project-hash is the absolute cwd path with '/' replaced by '-'.
+ */
+export function sessionExists(sessionId: string, cwd: string): boolean {
+    const homeDir = process.env.HOME || process.env.USERPROFILE || '';
+    const projectHash = cwd.replace(/\//g, '-');
+    const sessionFile = path.join(homeDir, '.claude', 'projects', projectHash, `${sessionId}.jsonl`);
+    return fs.existsSync(sessionFile);
+}
+
+/**
  * Generate a deterministic UUID from a string key using SHA-256.
  * Formatted as UUID v4 structure but with deterministic content.
  */
@@ -150,12 +162,12 @@ export async function invokeAgent(
 
         if (sessionKey) {
             const sessionId = deterministicUUID(`${agentId}:${sessionKey}`);
-            if (shouldReset) {
-                // Start fresh but pin the session ID so future messages resume it
-                claudeArgs.push('--session-id', sessionId);
-            } else {
-                // Resume the existing session
+            if (!shouldReset && sessionExists(sessionId, workingDir)) {
+                // Existing session — resume it
                 claudeArgs.push('--resume', sessionId);
+            } else {
+                // New session or reset — create with this ID
+                claudeArgs.push('--session-id', sessionId);
             }
         } else if (continueConversation) {
             // Fallback: continue last session (backward compat when no sessionKey)

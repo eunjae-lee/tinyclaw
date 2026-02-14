@@ -42,6 +42,7 @@ vi.mock('../lib/logging', () => ({
     log: vi.fn(),
 }));
 
+import fs from 'fs';
 import { spawn } from 'child_process';
 import { invokeAgent, deterministicUUID } from '../lib/invoke';
 
@@ -251,7 +252,7 @@ describe('invokeAgent - session isolation', () => {
         return { command: call[0] as string, args: call[1] as string[] };
     }
 
-    it('uses --resume with deterministic UUID when sessionKey is provided and not resetting', async () => {
+    it('uses --session-id when sessionKey provided and session does not exist yet', async () => {
         const agent: AgentConfig = {
             name: 'Coder',
             provider: 'anthropic',
@@ -262,6 +263,32 @@ describe('invokeAgent - session isolation', () => {
         await invokeAgent(agent, 'coder', 'hello', '/tmp/workspace', false, {}, {}, undefined, 'thread_123');
 
         const { args } = getSpawnArgs();
+        const sessionIdIndex = args.indexOf('--session-id');
+        expect(sessionIdIndex).toBeGreaterThan(-1);
+        const expectedUUID = deterministicUUID('coder:thread_123');
+        expect(args[sessionIdIndex + 1]).toBe(expectedUUID);
+        expect(args).not.toContain('-c');
+        expect(args).not.toContain('--resume');
+    });
+
+    it('uses --resume when sessionKey provided and session already exists', async () => {
+        const realExistsSync = fs.existsSync.bind(fs);
+        const spy = vi.spyOn(fs, 'existsSync').mockImplementation((p: fs.PathLike) => {
+            if (String(p).endsWith('.jsonl')) return true;
+            return realExistsSync(p);
+        });
+
+        const agent: AgentConfig = {
+            name: 'Coder',
+            provider: 'anthropic',
+            model: 'sonnet',
+            working_directory: '/tmp/coder',
+        };
+
+        await invokeAgent(agent, 'coder', 'hello', '/tmp/workspace', false, {}, {}, undefined, 'thread_123');
+        spy.mockRestore();
+
+        const { args } = getSpawnArgs();
         const resumeIndex = args.indexOf('--resume');
         expect(resumeIndex).toBeGreaterThan(-1);
         const expectedUUID = deterministicUUID('coder:thread_123');
@@ -270,7 +297,13 @@ describe('invokeAgent - session isolation', () => {
         expect(args).not.toContain('--session-id');
     });
 
-    it('uses --session-id with deterministic UUID when sessionKey is provided and resetting', async () => {
+    it('uses --session-id when resetting even if session exists', async () => {
+        const realExistsSync = fs.existsSync.bind(fs);
+        const spy = vi.spyOn(fs, 'existsSync').mockImplementation((p: fs.PathLike) => {
+            if (String(p).endsWith('.jsonl')) return true;
+            return realExistsSync(p);
+        });
+
         const agent: AgentConfig = {
             name: 'Coder',
             provider: 'anthropic',
@@ -279,13 +312,11 @@ describe('invokeAgent - session isolation', () => {
         };
 
         await invokeAgent(agent, 'coder', 'hello', '/tmp/workspace', true, {}, {}, undefined, 'thread_123');
+        spy.mockRestore();
 
         const { args } = getSpawnArgs();
         const sessionIdIndex = args.indexOf('--session-id');
         expect(sessionIdIndex).toBeGreaterThan(-1);
-        const expectedUUID = deterministicUUID('coder:thread_123');
-        expect(args[sessionIdIndex + 1]).toBe(expectedUUID);
-        expect(args).not.toContain('-c');
         expect(args).not.toContain('--resume');
     });
 
