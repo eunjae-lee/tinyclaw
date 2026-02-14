@@ -24,6 +24,7 @@ import { extractAgentPrefix } from '../lib/routing';
 
 const LOG_FILE = path.join(TINYCLAW_CONFIG_HOME, 'logs/discord.log');
 const FILES_DIR = path.join(TINYCLAW_CONFIG_HOME, 'files');
+const BOT_THREADS_FILE = path.join(TINYCLAW_CONFIG_HOME, 'bot-threads.json');
 
 // Ensure directories exist
 [QUEUE_INCOMING, QUEUE_OUTGOING, path.dirname(LOG_FILE), FILES_DIR, APPROVALS_PENDING, APPROVALS_DECISIONS].forEach(dir => {
@@ -118,9 +119,31 @@ function downloadFile(url: string, destPath: string): Promise<void> {
 const pendingMessages = new Map<string, PendingMessage>();
 let processingOutgoingQueue = false;
 
-// Track threads created by the bot (lost on restart — users can re-trigger with @mention)
+// Track threads created by the bot — persisted to disk so it survives restarts.
 // Maps thread ID → agent ID extracted from the starter message (or undefined for default agent)
 const botOwnedThreads = new Map<string, string | undefined>();
+
+// Load persisted thread map on startup
+try {
+    const data = JSON.parse(fs.readFileSync(BOT_THREADS_FILE, 'utf8'));
+    for (const [id, agent] of Object.entries(data)) {
+        botOwnedThreads.set(id, agent as string | undefined);
+    }
+} catch {
+    // No file yet or corrupt — start fresh
+}
+
+function saveBotOwnedThreads(): void {
+    try {
+        const obj: Record<string, string | undefined> = {};
+        for (const [id, agent] of botOwnedThreads) {
+            obj[id] = agent;
+        }
+        fs.writeFileSync(BOT_THREADS_FILE, JSON.stringify(obj));
+    } catch {
+        // Best-effort — don't crash on write failure
+    }
+}
 
 // Read allowed channel IDs from settings (re-reads each call so changes don't require restart)
 function getAllowedChannels(): { channelIds: string[]; defaultAgents: Map<string, string> } {
@@ -291,6 +314,7 @@ client.on(Events.MessageCreate, async (message: Message) => {
                     const starterMessage = await thread.fetchStarterMessage();
                     if (starterMessage?.author.id === client.user!.id) {
                         botOwnedThreads.set(thread.id, extractAgentPrefix(starterMessage?.content || ''));
+                        saveBotOwnedThreads();
                     } else {
                         return;
                     }
@@ -302,6 +326,7 @@ client.on(Events.MessageCreate, async (message: Message) => {
             // Once we get here, auto-track so future messages don't re-fetch
             if (!botOwnedThreads.has(thread.id)) {
                 botOwnedThreads.set(thread.id, undefined);
+                saveBotOwnedThreads();
             }
             replyChannel = thread;
         } else {
@@ -490,6 +515,7 @@ async function checkOutgoingQueue(): Promise<void> {
                             const { defaultAgents: da } = getAllowedChannels();
                             const parentDefault = da.get(pending.channel.id);
                             botOwnedThreads.set(thread.id, responseData.agent ?? parentDefault);
+                            saveBotOwnedThreads();
                             targetChannel = thread;
                         } catch (threadErr) {
                             log('WARN', `Failed to create thread, falling back to channel reply: ${(threadErr as Error).message}`);
@@ -617,6 +643,7 @@ client.on(Events.ThreadCreate, async (thread) => {
         const starterMessage = await thread.fetchStarterMessage();
         if (starterMessage?.author.id === client.user?.id) {
             botOwnedThreads.set(thread.id, extractAgentPrefix(starterMessage?.content || ''));
+            saveBotOwnedThreads();
             log('INFO', `Auto-tracked thread ${thread.id} (created on bot message)`);
         }
     } catch {
@@ -627,6 +654,7 @@ client.on(Events.ThreadCreate, async (thread) => {
 // Clean up bot-owned thread tracker when threads are deleted
 client.on(Events.ThreadDelete, (thread) => {
     botOwnedThreads.delete(thread.id);
+    saveBotOwnedThreads();
 });
 
 // Refresh typing indicator every 8 seconds (Discord typing expires after ~10s)
@@ -739,6 +767,7 @@ async function checkPendingApprovals(): Promise<void> {
                         const { defaultAgents: da } = getAllowedChannels();
                         const parentDefault = da.get(pending.channel.id);
                         botOwnedThreads.set(thread.id, approval.agent_id ?? parentDefault);
+                        saveBotOwnedThreads();
                         // Update pending so future approvals and the final response use this thread
                         pending.channel = thread;
                         pending.needsThread = false;
