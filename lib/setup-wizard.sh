@@ -290,6 +290,9 @@ fi
 if [ -f "$PROJECT_ROOT/AGENTS.md" ]; then
     cp "$PROJECT_ROOT/AGENTS.md" "$TINYCLAW_CONFIG_HOME/"
 fi
+if [ -f "$PROJECT_ROOT/templates/config.gitignore" ]; then
+    cp "$PROJECT_ROOT/templates/config.gitignore" "$TINYCLAW_CONFIG_HOME/.gitignore"
+fi
 echo -e "${GREEN}✓ Created config home: $TINYCLAW_CONFIG_HOME${NC}"
 
 # Create workspace directory
