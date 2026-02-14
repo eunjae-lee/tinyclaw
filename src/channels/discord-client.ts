@@ -482,12 +482,12 @@ client.on(Events.MessageCreate, async (message: Message) => {
             needsThread: needsThread,
         });
 
-        // Clean up old pending messages (older than 15 minutes — CLI timeout + buffer)
-        const pendingTimeoutMs = 15 * 60 * 1000;
-        const cutoff = Date.now() - pendingTimeoutMs;
+        // Clean up old pending messages (older than 3 days)
+        const threeDaysMs = 3 * 24 * 60 * 60 * 1000;
+        const cutoff = Date.now() - threeDaysMs;
         for (const [id, data] of pendingMessages.entries()) {
             if (data.timestamp < cutoff) {
-                log('WARN', `Pending message ${id} expired after ${pendingTimeoutMs / 60000} minutes`);
+                log('WARN', `Pending message ${id} expired after 3 days`);
                 pendingMessages.delete(id);
             }
         }
