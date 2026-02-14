@@ -48,7 +48,7 @@ export function ensureAgentDirectory(agentDir: string): void {
     }
 
     // Copy AGENTS.md
-    const sourceAgents = path.join(SCRIPT_DIR, 'AGENTS.md');
+    const sourceAgents = path.join(SCRIPT_DIR, 'templates', 'AGENTS.md');
     const targetAgents = path.join(agentDir, 'AGENTS.md');
     if (fs.existsSync(sourceAgents)) {
         fs.copyFileSync(sourceAgents, targetAgents);

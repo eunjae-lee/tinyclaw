@@ -188,8 +188,8 @@ agent_add() {
     if [ -f "$TINYCLAW_CONFIG_HOME/AGENTS.md" ]; then
         cp "$TINYCLAW_CONFIG_HOME/AGENTS.md" "$AGENTS_DIR/$AGENT_ID/"
         echo "  → Copied AGENTS.md to agent directory"
-    elif [ -f "$SCRIPT_DIR/AGENTS.md" ]; then
-        cp "$SCRIPT_DIR/AGENTS.md" "$AGENTS_DIR/$AGENT_ID/"
+    elif [ -f "$SCRIPT_DIR/templates/AGENTS.md" ]; then
+        cp "$SCRIPT_DIR/templates/AGENTS.md" "$AGENTS_DIR/$AGENT_ID/"
         echo "  → Copied AGENTS.md to agent directory"
     fi
 

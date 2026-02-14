@@ -70,7 +70,7 @@ jobs:
           cp tsconfig.json "$BUNDLE_DIR/"
           cp tsconfig.visualizer.json "$BUNDLE_DIR/"
           cp README.md "$BUNDLE_DIR/"
-          cp AGENTS.md "$BUNDLE_DIR/"
+          # AGENTS.md is in templates/ (copied with the templates dir below)
           cp SOUL.md "$BUNDLE_DIR/"
           cp -r templates "$BUNDLE_DIR/"
           cp .gitignore "$BUNDLE_DIR/"

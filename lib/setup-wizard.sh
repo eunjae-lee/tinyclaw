@@ -287,8 +287,8 @@ fi
 if [ -f "$PROJECT_ROOT/templates/heartbeat.md" ]; then
     cp "$PROJECT_ROOT/templates/heartbeat.md" "$TINYCLAW_CONFIG_HOME/"
 fi
-if [ -f "$PROJECT_ROOT/AGENTS.md" ]; then
-    cp "$PROJECT_ROOT/AGENTS.md" "$TINYCLAW_CONFIG_HOME/"
+if [ -f "$PROJECT_ROOT/templates/AGENTS.md" ]; then
+    cp "$PROJECT_ROOT/templates/AGENTS.md" "$TINYCLAW_CONFIG_HOME/"
 fi
 if [ -f "$PROJECT_ROOT/templates/config.gitignore" ]; then
     cp "$PROJECT_ROOT/templates/config.gitignore" "$TINYCLAW_CONFIG_HOME/.gitignore"

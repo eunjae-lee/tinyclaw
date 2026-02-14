@@ -112,7 +112,7 @@ describe('ensureAgentDirectory', () => {
     it('copies heartbeat.md and AGENTS.md', () => {
         fs.mkdirSync(path.join(scriptDir, 'templates'), { recursive: true });
         fs.writeFileSync(path.join(scriptDir, 'templates', 'heartbeat.md'), '# Heartbeat');
-        fs.writeFileSync(path.join(scriptDir, 'AGENTS.md'), '# Agents');
+        fs.writeFileSync(path.join(scriptDir, 'templates', 'AGENTS.md'), '# Agents');
 
         const agentDir = path.join(tmpDir, 'agent3');
         ensureAgentDirectory(agentDir);
