@@ -42,7 +42,6 @@ vi.mock('../lib/logging', () => ({
     log: vi.fn(),
 }));
 
-import fs from 'fs';
 import { spawn } from 'child_process';
 import { invokeAgent, deterministicUUID } from '../lib/invoke';
 
@@ -247,12 +246,12 @@ describe('invokeAgent - session isolation', () => {
         vi.clearAllMocks();
     });
 
-    function getSpawnArgs(): { command: string; args: string[] } {
-        const call = mockedSpawn.mock.calls[0];
+    function getSpawnArgs(callIndex = 0): { command: string; args: string[] } {
+        const call = mockedSpawn.mock.calls[callIndex];
         return { command: call[0] as string, args: call[1] as string[] };
     }
 
-    it('uses --session-id when sessionKey provided and session does not exist yet', async () => {
+    it('tries --resume first when sessionKey provided and not resetting', async () => {
         const agent: AgentConfig = {
             name: 'Coder',
             provider: 'anthropic',
@@ -261,32 +260,6 @@ describe('invokeAgent - session isolation', () => {
         };
 
         await invokeAgent(agent, 'coder', 'hello', '/tmp/workspace', false, {}, {}, undefined, 'thread_123');
-
-        const { args } = getSpawnArgs();
-        const sessionIdIndex = args.indexOf('--session-id');
-        expect(sessionIdIndex).toBeGreaterThan(-1);
-        const expectedUUID = deterministicUUID('coder:thread_123');
-        expect(args[sessionIdIndex + 1]).toBe(expectedUUID);
-        expect(args).not.toContain('-c');
-        expect(args).not.toContain('--resume');
-    });
-
-    it('uses --resume when sessionKey provided and session already exists', async () => {
-        const realExistsSync = fs.existsSync.bind(fs);
-        const spy = vi.spyOn(fs, 'existsSync').mockImplementation((p: fs.PathLike) => {
-            if (String(p).endsWith('.jsonl')) return true;
-            return realExistsSync(p);
-        });
-
-        const agent: AgentConfig = {
-            name: 'Coder',
-            provider: 'anthropic',
-            model: 'sonnet',
-            working_directory: '/tmp/coder',
-        };
-
-        await invokeAgent(agent, 'coder', 'hello', '/tmp/workspace', false, {}, {}, undefined, 'thread_123');
-        spy.mockRestore();
 
         const { args } = getSpawnArgs();
         const resumeIndex = args.indexOf('--resume');
@@ -297,12 +270,40 @@ describe('invokeAgent - session isolation', () => {
         expect(args).not.toContain('--session-id');
     });
 
-    it('uses --session-id when resetting even if session exists', async () => {
-        const realExistsSync = fs.existsSync.bind(fs);
-        const spy = vi.spyOn(fs, 'existsSync').mockImplementation((p: fs.PathLike) => {
-            if (String(p).endsWith('.jsonl')) return true;
-            return realExistsSync(p);
-        });
+    it('falls back to --session-id when --resume fails', async () => {
+        // First spawn (--resume) fails, second spawn (--session-id) succeeds
+        let callCount = 0;
+        mockedSpawn.mockImplementation((() => {
+            const EventEmitter = require('events');
+            const { Readable } = require('stream');
+
+            const stdout = new Readable({ read() {} });
+            const stderr = new Readable({ read() {} });
+            const child = new EventEmitter();
+            child.stdout = stdout;
+            child.stderr = stderr;
+            child.stdout.setEncoding = vi.fn();
+            child.stderr.setEncoding = vi.fn();
+
+            callCount++;
+            const isFirstCall = callCount === 1;
+
+            // Use setTimeout to ensure runCommand has attached its listeners
+            setTimeout(() => {
+                if (isFirstCall) {
+                    stderr.push('Session not found');
+                    stderr.push(null);
+                    stdout.push(null);
+                    child.emit('close', 1);
+                } else {
+                    stdout.push('fallback response');
+                    stdout.push(null);
+                    child.emit('close', 0);
+                }
+            }, 0);
+
+            return child;
+        }) as any);
 
         const agent: AgentConfig = {
             name: 'Coder',
@@ -311,13 +312,35 @@ describe('invokeAgent - session isolation', () => {
             working_directory: '/tmp/coder',
         };
 
+        const result = await invokeAgent(agent, 'coder', 'hello', '/tmp/workspace', false, {}, {}, undefined, 'thread_123');
+
+        expect(result).toBe('fallback response');
+        expect(mockedSpawn).toHaveBeenCalledTimes(2);
+
+        // First call used --resume
+        const firstArgs = getSpawnArgs(0).args;
+        expect(firstArgs).toContain('--resume');
+
+        // Second call used --session-id
+        const secondArgs = getSpawnArgs(1).args;
+        expect(secondArgs).toContain('--session-id');
+    });
+
+    it('uses --session-id when resetting with sessionKey', async () => {
+        const agent: AgentConfig = {
+            name: 'Coder',
+            provider: 'anthropic',
+            model: 'sonnet',
+            working_directory: '/tmp/coder',
+        };
+
         await invokeAgent(agent, 'coder', 'hello', '/tmp/workspace', true, {}, {}, undefined, 'thread_123');
-        spy.mockRestore();
 
         const { args } = getSpawnArgs();
         const sessionIdIndex = args.indexOf('--session-id');
         expect(sessionIdIndex).toBeGreaterThan(-1);
         expect(args).not.toContain('--resume');
+        expect(args).not.toContain('-c');
     });
 
     it('falls back to -c when no sessionKey and not resetting', async () => {

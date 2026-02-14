@@ -46,18 +46,6 @@ export async function runCommand(command: string, args: string[], cwd?: string, 
 }
 
 /**
- * Check if a Claude session file exists on disk.
- * Claude stores sessions at ~/.claude/projects/<project-hash>/<session-id>.jsonl
- * where project-hash is the absolute cwd path with '/' replaced by '-'.
- */
-export function sessionExists(sessionId: string, cwd: string): boolean {
-    const homeDir = process.env.HOME || process.env.USERPROFILE || '';
-    const projectHash = cwd.replace(/\//g, '-');
-    const sessionFile = path.join(homeDir, '.claude', 'projects', projectHash, `${sessionId}.jsonl`);
-    return fs.existsSync(sessionFile);
-}
-
-/**
  * Generate a deterministic UUID from a string key using SHA-256.
  * Formatted as UUID v4 structure but with deterministic content.
  */
@@ -160,26 +148,37 @@ export async function invokeAgent(
             claudeArgs.push('--model', modelId);
         }
 
+        const env = {
+            TINYCLAW_AGENT_ID: agentId,
+            TINYCLAW_CONFIG_HOME,
+            ...(messageId ? { TINYCLAW_MESSAGE_ID: messageId } : {}),
+        };
+
         if (sessionKey) {
             const sessionId = deterministicUUID(`${agentId}:${sessionKey}`);
-            if (!shouldReset && sessionExists(sessionId, workingDir)) {
-                // Existing session — resume it
-                claudeArgs.push('--resume', sessionId);
-            } else {
-                // New session or reset — create with this ID
-                claudeArgs.push('--session-id', sessionId);
+            if (shouldReset) {
+                // Reset: start fresh session with this ID
+                claudeArgs.push('--session-id', sessionId, '-p', message);
+                return await runCommand('claude', claudeArgs, workingDir, env);
             }
-        } else if (continueConversation) {
+
+            // Try to resume existing session; if it fails (e.g. session doesn't exist), create it
+            const resumeArgs = [...claudeArgs, '--resume', sessionId, '-p', message];
+            try {
+                return await runCommand('claude', resumeArgs, workingDir, env);
+            } catch {
+                log('INFO', `Session ${sessionId} not found, creating new session`);
+                const newArgs = [...claudeArgs, '--session-id', sessionId, '-p', message];
+                return await runCommand('claude', newArgs, workingDir, env);
+            }
+        }
+
+        if (continueConversation) {
             // Fallback: continue last session (backward compat when no sessionKey)
             claudeArgs.push('-c');
         }
 
         claudeArgs.push('-p', message);
-
-        return await runCommand('claude', claudeArgs, workingDir, {
-            TINYCLAW_AGENT_ID: agentId,
-            TINYCLAW_CONFIG_HOME,
-            ...(messageId ? { TINYCLAW_MESSAGE_ID: messageId } : {}),
-        });
+        return await runCommand('claude', claudeArgs, workingDir, env);
     }
 }
