@@ -21,6 +21,7 @@ import {
     SETTINGS_FILE, APPROVALS_PENDING, APPROVALS_DECISIONS, RESET_FLAG
 } from '../lib/config';
 import { extractAgentPrefix } from '../lib/routing';
+import { sanitizeFileName, buildUniqueFilePath, splitMessage } from '../lib/discord-utils';
 
 const LOG_FILE = path.join(TINYCLAW_CONFIG_HOME, 'logs/discord.log');
 const FILES_DIR = path.join(TINYCLAW_CONFIG_HOME, 'files');
@@ -70,23 +71,7 @@ interface ResponseData {
     files?: string[];
 }
 
-function sanitizeFileName(fileName: string): string {
-    const baseName = path.basename(fileName).replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').trim();
-    return baseName.length > 0 ? baseName : 'file.bin';
-}
-
-function buildUniqueFilePath(dir: string, preferredName: string): string {
-    const cleanName = sanitizeFileName(preferredName);
-    const ext = path.extname(cleanName);
-    const stem = path.basename(cleanName, ext);
-    let candidate = path.join(dir, cleanName);
-    let counter = 1;
-    while (fs.existsSync(candidate)) {
-        candidate = path.join(dir, `${stem}_${counter}${ext}`);
-        counter++;
-    }
-    return candidate;
-}
+// sanitizeFileName, buildUniqueFilePath imported from ../lib/discord-utils
 
 // Download a file from URL to local path
 function downloadFile(url: string, destPath: string): Promise<void> {
@@ -230,40 +215,7 @@ function getAgentListText(): string {
     }
 }
 
-// Split long messages for Discord's 2000 char limit
-function splitMessage(text: string, maxLength = 2000): string[] {
-    if (text.length <= maxLength) {
-        return [text];
-    }
-
-    const chunks: string[] = [];
-    let remaining = text;
-
-    while (remaining.length > 0) {
-        if (remaining.length <= maxLength) {
-            chunks.push(remaining);
-            break;
-        }
-
-        // Try to split at a newline boundary
-        let splitIndex = remaining.lastIndexOf('\n', maxLength);
-
-        // Fall back to space boundary
-        if (splitIndex <= 0) {
-            splitIndex = remaining.lastIndexOf(' ', maxLength);
-        }
-
-        // Hard-cut if no good boundary found
-        if (splitIndex <= 0) {
-            splitIndex = maxLength;
-        }
-
-        chunks.push(remaining.substring(0, splitIndex));
-        remaining = remaining.substring(splitIndex).replace(/^\n/, '');
-    }
-
-    return chunks;
-}
+// splitMessage imported from ../lib/discord-utils
 
 // Initialize Discord client
 const client = new Client({
