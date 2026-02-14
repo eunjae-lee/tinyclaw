@@ -77,3 +77,7 @@ Valid examples:
 - `[send_file: /Users/jliao/.tinyclaw/files/chart.png]`
 
 If multiple files are needed, include one tag per file.
+
+## Search Preferences
+
+- Prefer `rg` (ripgrep) over `grep` for searching file contents. `rg` is already installed on this system.
