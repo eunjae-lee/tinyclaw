@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import { copyDirSync, ensureAgentDirectory, configureApprovalHook, updateAgentTeammates } from '../lib/agent-setup';
-import type { AgentConfig, TeamConfig } from '../lib/types';
+import { copyDirSync, ensureAgentDirectory, configureApprovalHook } from '../lib/agent-setup';
+import type { AgentConfig } from '../lib/types';
 
 // We need to mock SCRIPT_DIR and APPROVALS_* so ensureAgentDirectory looks in our temp dir
 vi.mock('../lib/config', async () => {
@@ -84,7 +84,6 @@ describe('ensureAgentDirectory', () => {
         ensureAgentDirectory(agentDir);
 
         expect(fs.existsSync(agentDir)).toBe(true);
-        expect(fs.existsSync(path.join(agentDir, '.tinyclaw'))).toBe(true);
     });
 
     it('skips if directory already exists', () => {
@@ -118,17 +117,9 @@ describe('ensureAgentDirectory', () => {
         ensureAgentDirectory(agentDir);
 
         expect(fs.readFileSync(path.join(agentDir, 'heartbeat.md'), 'utf8')).toBe('# Heartbeat');
-        expect(fs.readFileSync(path.join(agentDir, '.claude', 'CLAUDE.md'), 'utf8')).toBe('# Claude');
+        expect(fs.readFileSync(path.join(agentDir, 'CLAUDE.md'), 'utf8')).toBe('# Claude');
     });
 
-    it('creates .tinyclaw/ with SOUL.md', () => {
-        fs.writeFileSync(path.join(scriptDir, 'SOUL.md'), '# Soul');
-
-        const agentDir = path.join(tmpDir, 'agent4');
-        ensureAgentDirectory(agentDir);
-
-        expect(fs.readFileSync(path.join(agentDir, '.tinyclaw', 'SOUL.md'), 'utf8')).toBe('# Soul');
-    });
 });
 
 describe('configureApprovalHook', () => {
@@ -198,53 +189,3 @@ describe('configureApprovalHook', () => {
     });
 });
 
-describe('updateAgentTeammates', () => {
-    let tmpDir: string;
-
-    const agents: Record<string, AgentConfig> = {
-        coder: { name: 'Coder', provider: 'anthropic', model: 'sonnet', working_directory: '/tmp/coder' },
-        reviewer: { name: 'Reviewer', provider: 'anthropic', model: 'opus', working_directory: '/tmp/reviewer' },
-        writer: { name: 'Writer', provider: 'anthropic', model: 'sonnet', working_directory: '/tmp/writer' },
-    };
-
-    const teams: Record<string, TeamConfig> = {
-        devteam: { name: 'DevTeam', agents: ['coder', 'reviewer'], leader_agent: 'coder' },
-    };
-
-    beforeEach(() => {
-        tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'teammates-'));
-    });
-
-    afterEach(() => {
-        fs.rmSync(tmpDir, { recursive: true, force: true });
-    });
-
-    it('injects teammate info between markers in .claude/CLAUDE.md', () => {
-        const agentDir = path.join(tmpDir, 'coder');
-        fs.mkdirSync(path.join(agentDir, '.claude'), { recursive: true });
-        fs.writeFileSync(path.join(agentDir, '.claude', 'CLAUDE.md'),
-            '# Agents\n<!-- TEAMMATES_START --><!-- TEAMMATES_END -->\n# End');
-
-        updateAgentTeammates(agentDir, 'coder', agents, teams);
-
-        const content = fs.readFileSync(path.join(agentDir, '.claude', 'CLAUDE.md'), 'utf8');
-        expect(content).toContain('@coder');
-        expect(content).toContain('@reviewer');
-        expect(content).toContain('# End');
-    });
-
-    it('handles agent not in any team (no teammates section)', () => {
-        const agentDir = path.join(tmpDir, 'writer');
-        fs.mkdirSync(path.join(agentDir, '.claude'), { recursive: true });
-        fs.writeFileSync(path.join(agentDir, '.claude', 'CLAUDE.md'),
-            '<!-- TEAMMATES_START --><!-- TEAMMATES_END -->');
-
-        updateAgentTeammates(agentDir, 'writer', agents, teams);
-
-        const content = fs.readFileSync(path.join(agentDir, '.claude', 'CLAUDE.md'), 'utf8');
-        // Writer is not in devteam, so no teammates
-        expect(content).toContain('@writer');
-        expect(content).not.toContain('@coder');
-        expect(content).not.toContain('Your Teammates');
-    });
-});

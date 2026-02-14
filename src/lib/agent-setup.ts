@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { AgentConfig, TeamConfig } from './types';
+import { AgentConfig } from './types';
 import { SCRIPT_DIR, APPROVALS_DIR, APPROVALS_PENDING, APPROVALS_DECISIONS } from './config';
 
 /**
@@ -47,11 +47,10 @@ export function ensureAgentDirectory(agentDir: string): void {
         fs.copyFileSync(sourceHeartbeat, targetHeartbeat);
     }
 
-    // Copy CLAUDE.md template into .claude/
+    // Copy CLAUDE.md template to agent root
     const sourceClaudeMd = path.join(SCRIPT_DIR, 'templates', 'CLAUDE.md');
-    const targetClaudeMd = path.join(agentDir, '.claude', 'CLAUDE.md');
+    const targetClaudeMd = path.join(agentDir, 'CLAUDE.md');
     if (fs.existsSync(sourceClaudeMd)) {
-        fs.mkdirSync(path.join(agentDir, '.claude'), { recursive: true });
         fs.copyFileSync(sourceClaudeMd, targetClaudeMd);
     }
 
@@ -68,14 +67,6 @@ export function ensureAgentDirectory(agentDir: string): void {
     if (fs.existsSync(sourceSkills) && !fs.existsSync(targetSkills)) {
         fs.mkdirSync(path.join(agentDir, '.claude'), { recursive: true });
         fs.symlinkSync(sourceSkills, targetSkills);
-    }
-
-    // Create .tinyclaw directory and copy SOUL.md
-    const targetTinyclaw = path.join(agentDir, '.tinyclaw');
-    fs.mkdirSync(targetTinyclaw, { recursive: true });
-    const sourceSoul = path.join(SCRIPT_DIR, 'SOUL.md');
-    if (fs.existsSync(sourceSoul)) {
-        fs.copyFileSync(sourceSoul, path.join(targetTinyclaw, 'SOUL.md'));
     }
 
     // Configure approval hook
@@ -134,47 +125,3 @@ export function configureApprovalHook(agentDir: string): void {
     fs.writeFileSync(claudeLocalFile, JSON.stringify(settings, null, 2));
 }
 
-/**
- * Update the .claude/CLAUDE.md in an agent's directory with current teammate info.
- * Replaces content between <!-- TEAMMATES_START --> and <!-- TEAMMATES_END --> markers.
- */
-export function updateAgentTeammates(agentDir: string, agentId: string, agents: Record<string, AgentConfig>, teams: Record<string, TeamConfig>): void {
-    const claudeDir = path.join(agentDir, '.claude');
-    const claudeMdPath = path.join(claudeDir, 'CLAUDE.md');
-    if (!fs.existsSync(claudeMdPath)) return;
-
-    let content = fs.readFileSync(claudeMdPath, 'utf8');
-    const startMarker = '<!-- TEAMMATES_START -->';
-    const endMarker = '<!-- TEAMMATES_END -->';
-    const startIdx = content.indexOf(startMarker);
-    const endIdx = content.indexOf(endMarker);
-    if (startIdx === -1 || endIdx === -1) return;
-
-    // Find teammates from all teams this agent belongs to
-    const teammates: { id: string; name: string; model: string }[] = [];
-    for (const team of Object.values(teams)) {
-        if (!team.agents.includes(agentId)) continue;
-        for (const tid of team.agents) {
-            if (tid === agentId) continue;
-            const agent = agents[tid];
-            if (agent && !teammates.some(t => t.id === tid)) {
-                teammates.push({ id: tid, name: agent.name, model: agent.model });
-            }
-        }
-    }
-
-    let block = '';
-    const self = agents[agentId];
-    if (self) {
-        block += `\n### You\n\n- \`@${agentId}\` — **${self.name}** (${self.model})\n`;
-    }
-    if (teammates.length > 0) {
-        block += '\n### Your Teammates\n\n';
-        for (const t of teammates) {
-            block += `- \`@${t.id}\` — **${t.name}** (${t.model})\n`;
-        }
-    }
-
-    const newContent = content.substring(0, startIdx + startMarker.length) + block + content.substring(endIdx);
-    fs.writeFileSync(claudeMdPath, newContent);
-}

@@ -1,10 +1,10 @@
 import { spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
-import { AgentConfig, TeamConfig, Settings } from './types';
+import { AgentConfig } from './types';
 import { SCRIPT_DIR, TINYCLAW_CONFIG_HOME, CLI_TIMEOUT_MS, resolveClaudeModel, resolveCodexModel } from './config';
 import { log } from './logging';
-import { ensureAgentDirectory, updateAgentTeammates } from './agent-setup';
+import { ensureAgentDirectory } from './agent-setup';
 import { getMemoryForInjection, writeMemoryTempFile, cleanupMemoryTmpFiles } from '../memory/read';
 import { getSession, createSession } from './session-store';
 
@@ -77,7 +77,6 @@ export async function invokeAgent(
     workspacePath: string,
     shouldReset: boolean,
     agents: Record<string, AgentConfig> = {},
-    teams: Record<string, TeamConfig> = {},
     messageId?: string,
     sessionKey?: string
 ): Promise<string> {
@@ -88,9 +87,6 @@ export async function invokeAgent(
     if (isNewAgent) {
         log('INFO', `Initialized agent directory with config files: ${agentDir}`);
     }
-
-    // Update AGENTS.md with current teammate info
-    updateAgentTeammates(agentDir, agentId, agents, teams);
 
     // Resolve working directory
     const workingDir = agent.working_directory

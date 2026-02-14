@@ -12,16 +12,6 @@ export interface AgentConfig {
     memory?: number;         // 0-1 (default 1). 0 = skip. Values between act as importance threshold.
 }
 
-export interface TeamConfig {
-    name: string;
-    agents: string[];
-    leader_agent: string;
-}
-
-export interface ChainStep {
-    agentId: string;
-    response: string;
-}
 
 export interface Credentials {
     channels?: {
@@ -54,7 +44,7 @@ export interface Settings {
         };
     };
     agents?: Record<string, AgentConfig>;
-    teams?: Record<string, TeamConfig>;
+
     permissions?: PermissionConfig;
     approvals?: {
         timeout?: number;      // seconds to wait for approval (default: 300)

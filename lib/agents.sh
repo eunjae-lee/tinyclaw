@@ -184,13 +184,13 @@ agent_add() {
         echo "  → Copied heartbeat.md to agent directory"
     fi
 
-    # Copy CLAUDE.md template into .claude/
+    # Copy CLAUDE.md template to agent root
     if [ -f "$TINYCLAW_CONFIG_HOME/CLAUDE.md" ]; then
-        cp "$TINYCLAW_CONFIG_HOME/CLAUDE.md" "$AGENTS_DIR/$AGENT_ID/.claude/CLAUDE.md"
-        echo "  → Copied CLAUDE.md to .claude/ directory"
+        cp "$TINYCLAW_CONFIG_HOME/CLAUDE.md" "$AGENTS_DIR/$AGENT_ID/CLAUDE.md"
+        echo "  → Copied CLAUDE.md to agent directory"
     elif [ -f "$SCRIPT_DIR/templates/CLAUDE.md" ]; then
-        cp "$SCRIPT_DIR/templates/CLAUDE.md" "$AGENTS_DIR/$AGENT_ID/.claude/CLAUDE.md"
-        echo "  → Copied CLAUDE.md to .claude/ directory"
+        cp "$SCRIPT_DIR/templates/CLAUDE.md" "$AGENTS_DIR/$AGENT_ID/CLAUDE.md"
+        echo "  → Copied CLAUDE.md to agent directory"
     fi
 
     # Copy .gitignore
@@ -203,13 +203,6 @@ agent_add() {
     if [ -d "$SCRIPT_DIR/.agents/skills" ] && [ ! -e "$AGENTS_DIR/$AGENT_ID/.claude/skills" ]; then
         ln -s "$SCRIPT_DIR/.agents/skills" "$AGENTS_DIR/$AGENT_ID/.claude/skills"
         echo "  → Linked skills to .claude/skills/"
-    fi
-
-    # Create .tinyclaw directory and copy SOUL.md
-    mkdir -p "$AGENTS_DIR/$AGENT_ID/.tinyclaw"
-    if [ -f "$SCRIPT_DIR/SOUL.md" ]; then
-        cp "$SCRIPT_DIR/SOUL.md" "$AGENTS_DIR/$AGENT_ID/.tinyclaw/SOUL.md"
-        echo "  → Copied SOUL.md to .tinyclaw/"
     fi
 
     echo ""

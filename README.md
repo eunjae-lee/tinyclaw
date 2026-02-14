@@ -7,11 +7,9 @@ Run multiple AI agents simultaneously with isolated workspaces and conversation 
 ## ✨ Features
 
 - ✅ **Multi-agent** - Run multiple isolated AI agents with specialized roles
-- ✅ **Team collaboration** - Agents hand off work to teammates via chain execution and fan-out
 - ✅ **Multiple AI providers** - Anthropic Claude (Sonnet/Opus) and OpenAI (GPT/Codex)
 - ✅ **Multi-channel** - Discord, WhatsApp, and Telegram
 - ✅ **Parallel processing** - Agents process messages concurrently
-- ✅ **Live TUI dashboard** - Real-time team visualizer for monitoring agent chains
 - ✅ **Interactive tool approvals** - Approve/deny agent tool use via Discord buttons
 - ✅ **Persistent sessions** - Conversation context maintained across restarts
 - ✅ **File-based queue** - No race conditions, reliable message handling
@@ -128,16 +126,6 @@ Commands work with `tinyclaw` (if CLI installed) or `./tinyclaw.sh` (direct scri
 | `agent remove <id>` | Remove an agent             | `tinyclaw agent remove coder` |
 | `agent reset <id>`  | Reset agent conversation    | `tinyclaw agent reset coder`  |
 
-### Team Commands
-
-| Command                  | Description                              | Example                       |
-| ------------------------ | ---------------------------------------- | ----------------------------- |
-| `team list`              | List all configured teams                | `tinyclaw team list`          |
-| `team add`               | Add new team (interactive)               | `tinyclaw team add`           |
-| `team show <id>`         | Show team configuration                  | `tinyclaw team show dev`      |
-| `team remove <id>`       | Remove a team                            | `tinyclaw team remove dev`    |
-| `team visualize [id]`    | Live TUI dashboard for team chains       | `tinyclaw team visualize dev` |
-
 ### Configuration Commands
 
 | Command                           | Description                  | Example                                          |
@@ -207,9 +195,7 @@ These commands work in Discord, Telegram, and WhatsApp:
 | Command             | Description                                  | Example                              |
 | ------------------- | -------------------------------------------- | ------------------------------------ |
 | `@agent_id message` | Route message to specific agent              | `@coder fix the bug`                 |
-| `@team_id message`  | Route message to team leader                 | `@dev fix the auth bug`              |
 | `/agent`            | List all available agents                    | `/agent`                             |
-| `/team`             | List all available teams                     | `/team`                              |
 | `@agent_id /reset`  | Reset specific agent conversation            | `@coder /reset`                      |
 | `/reset`            | Reset conversation (WhatsApp/global)         | `/reset` or `!reset`                 |
 | `message`           | Send to default agent (no prefix)            | `help me with this`                  |
@@ -415,17 +401,15 @@ tinyclaw/
 │   ├── logs/             # All logs
 │   ├── channels/         # Channel state
 │   ├── files/            # Uploaded files
-│   ├── chats/            # Team chain chat history
-│   │   └── {team_id}/    # Per-team chat logs
 │   ├── events/           # Real-time event files
 │   ├── .claude/          # Template for agents
 │   ├── heartbeat.md      # Template for agents
-│   └── AGENTS.md         # Template for agents
+│   └── CLAUDE.md         # Template for agents
 ├── ~/tinyclaw-workspace/ # Agent workspaces
 │   ├── coder/
 │   │   ├── .claude/
 │   │   ├── heartbeat.md
-│   │   └── AGENTS.md
+│   │   └── CLAUDE.md
 │   ├── writer/
 │   └── assistant/
 ├── src/                  # TypeScript sources
@@ -463,13 +447,6 @@ Located at `.tinyclaw/settings.json`:
       "provider": "anthropic",
       "model": "sonnet",
       "working_directory": "/Users/me/tinyclaw-workspace/assistant"
-    }
-  },
-  "teams": {
-    "dev": {
-      "name": "Development Team",
-      "agents": ["coder", "reviewer"],
-      "leader_agent": "coder"
     }
   },
   "permissions": {
@@ -525,18 +502,6 @@ Claude: "Don't forget to call mom!"
 @reviewer Check the documentation quality
 ```
 
-### Team Collaboration
-
-```
-@dev fix the auth bug
-# → Routes to team leader (@coder)
-# → Coder fixes bug, mentions @reviewer in response
-# → Reviewer automatically invoked, reviews changes
-# → Combined response sent back to user
-```
-
-Teams support sequential chains (single handoff) and parallel fan-out (multiple teammate mentions). See [docs/TEAMS.md](docs/TEAMS.md) for details.
-
 ### Cross-Device Access
 
 - WhatsApp on phone
@@ -549,7 +514,6 @@ All channels share agent conversations!
 ## 📚 Documentation
 
 - [AGENTS.md](docs/AGENTS.md) - Agent management and routing
-- [TEAMS.md](docs/TEAMS.md) - Team collaboration, chain execution, and visualizer
 - [QUEUE.md](docs/QUEUE.md) - Queue system and message flow
 - [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) - Common issues and solutions
 

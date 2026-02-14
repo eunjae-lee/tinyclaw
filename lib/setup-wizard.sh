@@ -308,8 +308,7 @@ if [ -f "$TINYCLAW_CONFIG_HOME/heartbeat.md" ]; then
     cp "$TINYCLAW_CONFIG_HOME/heartbeat.md" "$DEFAULT_AGENT_DIR/"
 fi
 if [ -f "$TINYCLAW_CONFIG_HOME/CLAUDE.md" ]; then
-    mkdir -p "$DEFAULT_AGENT_DIR/.claude"
-    cp "$TINYCLAW_CONFIG_HOME/CLAUDE.md" "$DEFAULT_AGENT_DIR/.claude/CLAUDE.md"
+    cp "$TINYCLAW_CONFIG_HOME/CLAUDE.md" "$DEFAULT_AGENT_DIR/CLAUDE.md"
 fi
 echo -e "${GREEN}✓ Created default agent directory: $DEFAULT_AGENT_DIR${NC}"
 
@@ -324,8 +323,7 @@ for agent_id in "${ADDITIONAL_AGENTS[@]}"; do
         cp "$TINYCLAW_CONFIG_HOME/heartbeat.md" "$AGENT_DIR/"
     fi
     if [ -f "$TINYCLAW_CONFIG_HOME/CLAUDE.md" ]; then
-        mkdir -p "$AGENT_DIR/.claude"
-        cp "$TINYCLAW_CONFIG_HOME/CLAUDE.md" "$AGENT_DIR/.claude/CLAUDE.md"
+        cp "$TINYCLAW_CONFIG_HOME/CLAUDE.md" "$AGENT_DIR/CLAUDE.md"
     fi
     echo -e "${GREEN}✓ Created agent directory: $AGENT_DIR${NC}"
 done

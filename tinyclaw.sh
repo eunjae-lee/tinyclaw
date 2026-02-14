@@ -28,7 +28,6 @@ source "$SCRIPT_DIR/lib/common.sh"
 source "$SCRIPT_DIR/lib/daemon.sh"
 source "$SCRIPT_DIR/lib/messaging.sh"
 source "$SCRIPT_DIR/lib/agents.sh"
-source "$SCRIPT_DIR/lib/teams.sh"
 
 # --- Main command dispatch ---
 
@@ -281,69 +280,6 @@ case "${1:-}" in
                 ;;
         esac
         ;;
-    team)
-        case "${2:-}" in
-            list|ls)
-                team_list
-                ;;
-            add)
-                team_add
-                ;;
-            remove|rm)
-                if [ -z "$3" ]; then
-                    echo "Usage: $0 team remove <team_id>"
-                    exit 1
-                fi
-                team_remove "$3"
-                ;;
-            show)
-                if [ -z "$3" ]; then
-                    echo "Usage: $0 team show <team_id>"
-                    exit 1
-                fi
-                team_show "$3"
-                ;;
-            visualize|viz)
-                # Build visualizer if needed
-                if [ ! -f "$SCRIPT_DIR/dist/visualizer/team-visualizer.js" ] || \
-                   [ "$SCRIPT_DIR/src/visualizer/team-visualizer.tsx" -nt "$SCRIPT_DIR/dist/visualizer/team-visualizer.js" ]; then
-                    echo -e "${BLUE}Building team visualizer...${NC}"
-                    cd "$SCRIPT_DIR" && npm run build:visualizer 2>/dev/null
-                    if [ $? -ne 0 ]; then
-                        echo -e "${RED}Failed to build visualizer.${NC}"
-                        exit 1
-                    fi
-                fi
-                if [ -n "$3" ]; then
-                    node "$SCRIPT_DIR/dist/visualizer/team-visualizer.js" --team "$3"
-                else
-                    node "$SCRIPT_DIR/dist/visualizer/team-visualizer.js"
-                fi
-                ;;
-            *)
-                echo "Usage: $0 team {list|add|remove|show|visualize}"
-                echo ""
-                echo "Team Commands:"
-                echo "  list                   List all configured teams"
-                echo "  add                    Add a new team interactively"
-                echo "  remove <id>            Remove a team"
-                echo "  show <id>              Show team configuration"
-                echo "  visualize [team_id]    Live TUI dashboard for team collaboration"
-                echo ""
-                echo "Examples:"
-                echo "  $0 team list"
-                echo "  $0 team add"
-                echo "  $0 team show dev"
-                echo "  $0 team remove dev"
-                echo "  $0 team visualize"
-                echo "  $0 team visualize dev"
-                echo ""
-                echo "In chat, use '@team_id message' to route to a team's leader agent."
-                echo "Agents can collaborate by mentioning @teammate in responses."
-                exit 1
-                ;;
-        esac
-        ;;
     memory)
         shift
         node "$SCRIPT_DIR/dist/memory/index.js" "$@"
@@ -358,7 +294,7 @@ case "${1:-}" in
         local_names=$(IFS='|'; echo "${ALL_CHANNELS[*]}")
         echo -e "${BLUE}TinyClaw - Claude Code + Messaging Channels${NC}"
         echo ""
-        echo "Usage: $0 {start|stop|restart|status|setup|send|logs|reset|channels|provider|model|agent|team|memory|attach}"
+        echo "Usage: $0 {start|stop|restart|status|setup|send|logs|reset|channels|provider|model|agent|memory|attach}"
         echo ""
         echo "Commands:"
         echo "  start                    Start TinyClaw"
@@ -373,7 +309,6 @@ case "${1:-}" in
         echo "  provider [name] [--model model]  Show or switch AI provider"
         echo "  model [name]             Show or switch AI model"
         echo "  agent {list|add|remove|show|reset}  Manage agents"
-        echo "  team {list|add|remove|show|visualize}  Manage teams"
         echo "  memory {read|write|ingest|promote|inject|status}  Memory system"
         echo "  attach                   Attach to tmux session"
         echo ""
@@ -384,10 +319,7 @@ case "${1:-}" in
         echo "  $0 model opus"
         echo "  $0 agent list"
         echo "  $0 agent add"
-        echo "  $0 team list"
-        echo "  $0 team visualize dev"
         echo "  $0 send '@coder fix the bug'"
-        echo "  $0 send '@dev fix the auth bug'"
         echo "  $0 channels reset whatsapp"
         echo "  $0 logs telegram"
         echo ""

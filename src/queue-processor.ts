@@ -16,7 +16,7 @@ import { QueueFile } from './lib/types';
 import {
     QUEUE_INCOMING, QUEUE_OUTGOING, QUEUE_PROCESSING, QUEUE_DEAD_LETTER,
     LOG_FILE, EVENTS_DIR,
-    getSettings, getAgents, getTeams
+    getSettings, getAgents
 } from './lib/config';
 import { log, emitEvent } from './lib/logging';
 import { processMessage, peekAgentId, recoverStuckFiles } from './lib/queue-core';
@@ -81,24 +81,15 @@ async function processQueue(): Promise<void> {
     }
 }
 
-// Log agent and team configuration on startup
+// Log agent configuration on startup
 function logAgentConfig(): void {
     const settings = getSettings();
     const agents = getAgents(settings);
-    const teams = getTeams(settings);
 
     const agentCount = Object.keys(agents).length;
     log('INFO', `Loaded ${agentCount} agent(s):`);
     for (const [id, agent] of Object.entries(agents)) {
         log('INFO', `  ${id}: ${agent.name} [${agent.provider}/${agent.model}] cwd=${agent.working_directory}`);
-    }
-
-    const teamCount = Object.keys(teams).length;
-    if (teamCount > 0) {
-        log('INFO', `Loaded ${teamCount} team(s):`);
-        for (const [id, team] of Object.entries(teams)) {
-            log('INFO', `  ${id}: ${team.name} [agents: ${team.agents.join(', ')}] leader=${team.leader_agent}`);
-        }
     }
 }
 
@@ -111,7 +102,7 @@ if (!fs.existsSync(EVENTS_DIR)) {
 log('INFO', 'Queue processor started');
 log('INFO', `Watching: ${QUEUE_INCOMING}`);
 logAgentConfig();
-emitEvent('processor_start', { agents: Object.keys(getAgents(getSettings())), teams: Object.keys(getTeams(getSettings())) });
+emitEvent('processor_start', { agents: Object.keys(getAgents(getSettings())) });
 
 // Recover any files stuck in processing from a previous crash
 const recoveredCount = recoverStuckFiles();

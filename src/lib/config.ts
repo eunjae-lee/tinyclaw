@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { Settings, Credentials, AgentConfig, TeamConfig, PermissionConfig, CLAUDE_MODEL_IDS, CODEX_MODEL_IDS } from './types';
+import { Settings, Credentials, AgentConfig, PermissionConfig, CLAUDE_MODEL_IDS, CODEX_MODEL_IDS } from './types';
 
 export const SCRIPT_DIR = path.resolve(__dirname, '../..');
 export const TINYCLAW_CONFIG_HOME = process.env.TINYCLAW_CONFIG_HOME
@@ -24,7 +24,7 @@ export const QUEUE_PROCESSING = path.join(TINYCLAW_CONFIG_HOME, 'queue/processin
 export const LOG_FILE = path.join(TINYCLAW_CONFIG_HOME, 'logs/queue.log');
 export const RESET_FLAG = path.join(TINYCLAW_CONFIG_HOME, 'reset_flag');
 export const EVENTS_DIR = path.join(TINYCLAW_CONFIG_HOME, 'events');
-export const CHATS_DIR = path.join(TINYCLAW_CONFIG_HOME, 'chats');
+
 export const APPROVALS_DIR = path.join(TINYCLAW_CONFIG_HOME, 'approvals');
 export const APPROVALS_PENDING = path.join(APPROVALS_DIR, 'pending');
 export const APPROVALS_DECISIONS = path.join(APPROVALS_DIR, 'decisions');
@@ -126,12 +126,6 @@ export function getAgents(settings: Settings): Record<string, AgentConfig> {
     return { default: getDefaultAgentFromModels(settings) };
 }
 
-/**
- * Get all configured teams.
- */
-export function getTeams(settings: Settings): Record<string, TeamConfig> {
-    return settings.teams || {};
-}
 
 /**
  * Resolve the model ID for Claude (Anthropic).

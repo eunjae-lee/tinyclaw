@@ -35,7 +35,6 @@ vi.mock('../lib/config', async (importOriginal) => {
 
 vi.mock('../lib/agent-setup', () => ({
     ensureAgentDirectory: vi.fn(),
-    updateAgentTeammates: vi.fn(),
 }));
 
 vi.mock('../lib/logging', () => ({
@@ -290,7 +289,7 @@ describe('invokeAgent - session isolation', () => {
             working_directory: '/tmp/coder',
         };
 
-        await invokeAgent(agent, 'coder', 'hello', '/tmp/workspace', false, {}, {}, undefined, 'thread_123');
+        await invokeAgent(agent, 'coder', 'hello', '/tmp/workspace', false, {}, undefined, 'thread_123');
 
         expect(mockedGetSession).toHaveBeenCalledWith('thread_123');
         const { args } = getSpawnArgs();
@@ -312,7 +311,7 @@ describe('invokeAgent - session isolation', () => {
             working_directory: '/tmp/coder',
         };
 
-        await invokeAgent(agent, 'coder', 'hello', '/tmp/workspace', false, {}, {}, undefined, 'thread_123');
+        await invokeAgent(agent, 'coder', 'hello', '/tmp/workspace', false, {}, undefined, 'thread_123');
 
         expect(mockedCreateSession).toHaveBeenCalledWith('thread_123', 'coder');
         const { args } = getSpawnArgs();
@@ -366,7 +365,7 @@ describe('invokeAgent - session isolation', () => {
             working_directory: '/tmp/coder',
         };
 
-        const result = await invokeAgent(agent, 'coder', 'hello', '/tmp/workspace', false, {}, {}, undefined, 'thread_123');
+        const result = await invokeAgent(agent, 'coder', 'hello', '/tmp/workspace', false, {}, undefined, 'thread_123');
 
         expect(result).toBe('fallback response');
         expect(mockedSpawn).toHaveBeenCalledTimes(2);
@@ -416,7 +415,7 @@ describe('invokeAgent - session isolation', () => {
         };
 
         await expect(
-            invokeAgent(agent, 'coder', 'hello', '/tmp/workspace', false, {}, {}, undefined, 'thread_123')
+            invokeAgent(agent, 'coder', 'hello', '/tmp/workspace', false, {}, undefined, 'thread_123')
         ).rejects.toThrow('Rate limit exceeded');
 
         // Should NOT have created a new session
@@ -435,7 +434,7 @@ describe('invokeAgent - session isolation', () => {
             working_directory: '/tmp/coder',
         };
 
-        await invokeAgent(agent, 'coder', 'hello', '/tmp/workspace', true, {}, {}, undefined, 'thread_123');
+        await invokeAgent(agent, 'coder', 'hello', '/tmp/workspace', true, {}, undefined, 'thread_123');
 
         expect(mockedCreateSession).toHaveBeenCalledWith('thread_123', 'coder');
         const { args } = getSpawnArgs();

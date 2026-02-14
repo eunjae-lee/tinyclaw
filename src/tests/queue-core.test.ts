@@ -13,7 +13,6 @@ vi.mock('../lib/config', () => ({
     LOG_FILE: '/mock/logs/queue.log',
     RESET_FLAG: '/mock/reset_flag',
     EVENTS_DIR: '/mock/events',
-    CHATS_DIR: '/mock/chats',
     TINYCLAW_CONFIG_WORKSPACE: '/mock/workspace',
     getSettings: vi.fn(() => ({
         agents: {
@@ -23,7 +22,6 @@ vi.mock('../lib/config', () => ({
     getAgents: vi.fn((settings: any) => settings?.agents || {
         coder: { name: 'Coder', provider: 'anthropic', model: 'sonnet', working_directory: '/tmp/coder' },
     }),
-    getTeams: vi.fn(() => ({})),
 }));
 
 vi.mock('../lib/logging', () => ({
@@ -39,7 +37,7 @@ vi.mock('../lib/invoke', () => ({
 // Don't mock fs — we use real temp dirs
 
 import { processMessage, peekAgentId, recoverStuckFiles } from '../lib/queue-core';
-import { getSettings, getAgents, getTeams } from '../lib/config';
+import { getSettings, getAgents } from '../lib/config';
 import { invokeAgent } from '../lib/invoke';
 
 describe('processMessage', () => {
@@ -70,7 +68,6 @@ describe('processMessage', () => {
         (configMock as any).QUEUE_DEAD_LETTER = deadLetterDir;
         (configMock as any).MAX_RETRY_COUNT = 3;
         (configMock as any).RESET_FLAG = path.join(tmpDir, 'reset_flag');
-        (configMock as any).CHATS_DIR = path.join(tmpDir, 'chats');
         (configMock as any).TINYCLAW_CONFIG_WORKSPACE = path.join(tmpDir, 'workspace');
     });
 
@@ -123,7 +120,6 @@ describe('processMessage', () => {
             expect.any(String),
             expect.any(Boolean),
             expect.any(Object),
-            expect.any(Object),
             'msg_123',
             undefined,
         );
@@ -145,7 +141,6 @@ describe('processMessage', () => {
             expect.any(String),
             expect.any(Boolean),
             expect.any(Object),
-            expect.any(Object),
             'msg_123',
             undefined,
         );
@@ -166,31 +161,9 @@ describe('processMessage', () => {
             expect.any(String),
             expect.any(Boolean),
             expect.any(Object),
-            expect.any(Object),
             'msg_123',
             undefined,
         );
-    });
-
-    it('writes easter egg response for agentId "error"', async () => {
-        // Setup multiple agents so parseAgentRouting returns 'error'
-        vi.mocked(getAgents).mockReturnValue({
-            coder: { name: 'Coder', provider: 'anthropic', model: 'sonnet', working_directory: '/tmp/coder' },
-            writer: { name: 'Writer', provider: 'anthropic', model: 'sonnet', working_directory: '/tmp/writer' },
-        });
-        vi.mocked(getTeams).mockReturnValue({});
-
-        const msgFile = writeMessage({ message: '!coder and !writer do stuff' });
-        await processMessage(msgFile);
-
-        // invokeAgent should NOT have been called
-        expect(invokeAgent).not.toHaveBeenCalled();
-
-        // Response should contain easter egg text
-        const outFiles = fs.readdirSync(outgoingDir);
-        expect(outFiles.length).toBe(1);
-        const response = JSON.parse(fs.readFileSync(path.join(outgoingDir, outFiles[0]), 'utf8'));
-        expect(response.message).toContain('Coming Soon');
     });
 
     it('detects and cleans up reset flags', async () => {
@@ -213,7 +186,6 @@ describe('processMessage', () => {
             expect.any(String),
             expect.any(String),
             true, // shouldReset
-            expect.any(Object),
             expect.any(Object),
             'msg_123',
             undefined,
@@ -324,7 +296,6 @@ describe('processMessage', () => {
             expect.any(String),
             expect.any(Boolean),
             expect.any(Object),
-            expect.any(Object),
             'msg_123',
             'thread_abc',
         );
@@ -346,7 +317,6 @@ describe('peekAgentId', () => {
         vi.mocked(getAgents).mockReturnValue({
             coder: { name: 'Coder', provider: 'anthropic', model: 'sonnet', working_directory: '/tmp/coder' },
         });
-        vi.mocked(getTeams).mockReturnValue({});
     });
 
     afterEach(() => {
@@ -415,7 +385,6 @@ describe('processMessage - retry and dead-letter', () => {
         (configMock as any).QUEUE_DEAD_LETTER = deadLetterDir;
         (configMock as any).MAX_RETRY_COUNT = 3;
         (configMock as any).RESET_FLAG = path.join(tmpDir, 'reset_flag');
-        (configMock as any).CHATS_DIR = path.join(tmpDir, 'chats');
         (configMock as any).TINYCLAW_CONFIG_WORKSPACE = path.join(tmpDir, 'workspace');
 
         // Make getSettings throw to trigger the outer catch block in processMessage
