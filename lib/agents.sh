@@ -199,6 +199,12 @@ agent_add() {
         echo "  → Copied CLAUDE.md to .claude/ directory"
     fi
 
+    # Copy .gitignore
+    if [ -f "$SCRIPT_DIR/templates/agent.gitignore" ]; then
+        cp "$SCRIPT_DIR/templates/agent.gitignore" "$AGENTS_DIR/$AGENT_ID/.gitignore"
+        echo "  → Copied .gitignore to agent directory"
+    fi
+
     # Symlink skills directory into .claude/skills
     if [ -d "$SCRIPT_DIR/.agents/skills" ] && [ ! -e "$AGENTS_DIR/$AGENT_ID/.claude/skills" ]; then
         ln -s "$SCRIPT_DIR/.agents/skills" "$AGENTS_DIR/$AGENT_ID/.claude/skills"

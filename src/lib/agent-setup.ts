@@ -54,6 +54,13 @@ export function ensureAgentDirectory(agentDir: string): void {
         fs.copyFileSync(sourceAgents, targetAgents);
     }
 
+    // Copy .gitignore
+    const sourceGitignore = path.join(SCRIPT_DIR, 'templates', 'agent.gitignore');
+    const targetGitignore = path.join(agentDir, '.gitignore');
+    if (fs.existsSync(sourceGitignore)) {
+        fs.copyFileSync(sourceGitignore, targetGitignore);
+    }
+
     // Symlink skills directory into .claude/skills
     const sourceSkills = path.join(SCRIPT_DIR, '.agents', 'skills');
     const targetSkills = path.join(agentDir, '.claude', 'skills');
