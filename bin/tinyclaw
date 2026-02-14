@@ -20,6 +20,7 @@ TINYCLAW_DIR="$(cd "$(dirname "$TINYCLAW_BIN")" && pwd)"
 export TINYCLAW_HOME="$(dirname "$TINYCLAW_DIR")"
 export TINYCLAW_CONFIG_HOME="/Users/eunjae/workspace/everything/tinyclaw/config"
 export TINYCLAW_CONFIG_WORKSPACE="/Users/eunjae/workspace/everything/tinyclaw/workspace"
+export TINYCLAW_MEMORY_HOME="/Users/eunjae/workspace/everything/tinyclaw/memory"
 
 # Execute the main script with all arguments
 # Use $BASH to propagate the current bash interpreter (important for launchd

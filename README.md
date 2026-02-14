@@ -15,6 +15,7 @@ Run multiple AI agents simultaneously with isolated workspaces and conversation 
 - ✅ **Interactive tool approvals** - Approve/deny agent tool use via Discord buttons
 - ✅ **Persistent sessions** - Conversation context maintained across restarts
 - ✅ **File-based queue** - No race conditions, reliable message handling
+- ✅ **Three-layer memory** - Automatic daily/mid-term/long-term memory across sessions
 - ✅ **24/7 operation** - Runs in tmux for always-on availability
 
 ## 🚀 Quick Start
@@ -147,6 +148,18 @@ Commands work with `tinyclaw` (if CLI installed) or `./tinyclaw.sh` (direct scri
 | `reset`                           | Reset all conversations      | `tinyclaw reset`                                 |
 | `channels reset <channel>`        | Reset channel authentication | `tinyclaw channels reset whatsapp`               |
 
+### Memory Commands
+
+| Command                                  | Description                                | Example                                    |
+| ---------------------------------------- | ------------------------------------------ | ------------------------------------------ |
+| `memory read`                            | Show today's daily + mid-term memory       | `tinyclaw memory read`                     |
+| `memory read --layer <layer>`            | Read specific layer (daily/mid-term/long-term/all) | `tinyclaw memory read --layer long-term` |
+| `memory write "<text>"`                  | Save a fact to long-term memory            | `tinyclaw memory write "We use Prisma"`    |
+| `memory status`                          | Show memory file sizes and dates           | `tinyclaw memory status`                   |
+| `memory ingest`                          | Ingest session transcripts (runs hourly via cron) | `tinyclaw memory ingest`             |
+| `memory promote daily`                   | Promote daily logs to mid-term summary     | `tinyclaw memory promote daily`            |
+| `memory promote weekly`                  | Promote mid-term to long-term memory       | `tinyclaw memory promote weekly`           |
+
 ### Update Commands
 
 | Command  | Description                       | Example           |
@@ -237,6 +250,7 @@ Agents are configured in `.tinyclaw/settings.json`:
       "name": "Technical Writer",
       "provider": "openai",
       "model": "gpt-5.3-codex",
+      "memory": 0.5,
       "working_directory": "/Users/me/tinyclaw-workspace/writer"
     }
   }
@@ -284,6 +298,51 @@ When an agent attempts to use a tool not in its pre-approved `allowedTools` list
 - The hook blocks until you respond (or the timeout expires, default 300s)
 
 See [docs/AGENTS.md](docs/AGENTS.md) for detailed configuration.
+
+## 🧠 Memory System
+
+TinyClaw includes a three-layer memory system that gives agents continuity across sessions. Memory is unified across all agents.
+
+### Three Layers
+
+| Layer | What it captures | Lifespan | Injected into sessions? |
+|-------|-----------------|----------|------------------------|
+| **Daily** | Summarized session activity per day | ~7 days | Today's log auto-injected |
+| **Mid-term** | Rolling summary of last 7 days (~1000 tokens) | ~4 weeks | Always auto-injected |
+| **Long-term** | Durable facts, settled decisions, preferences | Forever | On demand via CLI |
+
+### How It Works
+
+**Automatic pipeline** (hourly cron via launchd):
+1. **Ingest**: Session JSONL transcripts are preprocessed and summarized by an LLM into daily logs
+2. **Promote daily→mid-term**: At 4am, last 7 daily logs are summarized into `mid-term.md`
+3. **Promote mid-term→long-term**: Monday 4am, durable facts are promoted to `long-term.md`
+
+**Session injection**: When an agent is invoked, mid-term + today's daily log are automatically injected via `--append-system-prompt-file`. Agents can access long-term memory on demand by running `tinyclaw memory read --layer long-term`.
+
+### Agent Memory Configuration
+
+Each agent has an optional `memory` field (0-1, default 1):
+- `1` — include everything (default)
+- `0.5` — only include items the LLM rates above 0.5 importance
+- `0` — skip this agent entirely (no memory processing)
+
+### Memory Storage
+
+Memory files are stored at `TINYCLAW_MEMORY_HOME` (default: `~/workspace/everything/tinyclaw/memory/`):
+
+```
+memory/
+  daily/
+    2026-02-14.md     ← entries from all agents, tagged by agent name
+    2026-02-13.md
+  mid-term.md           ← rolling 7-day summary (~1000 tokens)
+  long-term.md          ← durable facts, preferences, decisions
+```
+
+### Setup
+
+Memory cron is installed automatically with `npm run launchd:install` or `npm run restart`.
 
 ## 📐 Architecture
 
@@ -370,9 +429,12 @@ tinyclaw/
 │   ├── writer/
 │   └── assistant/
 ├── src/                  # TypeScript sources
+│   └── memory/           # Memory system modules
 ├── dist/                 # Compiled output
 ├── lib/                  # Runtime scripts
-├── scripts/              # Installation scripts
+├── features/             # Feature modules
+│   └── memory/           # Memory cron + launchd plist
+├── scripts/              # Installation & launchd scripts
 └── tinyclaw.sh           # Main script
 ```
 

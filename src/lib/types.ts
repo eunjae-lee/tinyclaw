@@ -9,6 +9,7 @@ export interface AgentConfig {
     model: string;           // e.g. 'sonnet', 'opus', 'gpt-5.3-codex'
     working_directory: string;
     permissions?: PermissionConfig;
+    memory?: number;         // 0-1 (default 1). 0 = skip. Values between act as importance threshold.
 }
 
 export interface TeamConfig {

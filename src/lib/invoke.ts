@@ -6,6 +6,7 @@ import { AgentConfig, TeamConfig, Settings } from './types';
 import { SCRIPT_DIR, TINYCLAW_CONFIG_HOME, resolveClaudeModel, resolveCodexModel } from './config';
 import { log } from './logging';
 import { ensureAgentDirectory, updateAgentTeammates } from './agent-setup';
+import { getMemoryForInjection, writeMemoryTempFile, cleanupMemoryTmpFiles } from '../memory/read';
 
 export async function runCommand(command: string, args: string[], cwd?: string, env?: Record<string, string>): Promise<string> {
     return new Promise((resolve, reject) => {
@@ -146,6 +147,17 @@ export async function invokeAgent(
         const claudeArgs: string[] = ['--permission-mode', 'default'];
         if (modelId) {
             claudeArgs.push('--model', modelId);
+        }
+        // Memory injection
+        try {
+            cleanupMemoryTmpFiles();
+            const memoryContent = getMemoryForInjection();
+            if (memoryContent?.trim()) {
+                const memoryFile = writeMemoryTempFile(memoryContent, agentId);
+                claudeArgs.push('--append-system-prompt-file', memoryFile);
+            }
+        } catch (e) {
+            log('WARN', `Memory injection failed: ${(e as Error).message}`);
         }
 
         const env = {

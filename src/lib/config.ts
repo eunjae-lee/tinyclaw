@@ -7,6 +7,10 @@ export const TINYCLAW_CONFIG_HOME = process.env.TINYCLAW_CONFIG_HOME
     || path.join(require('os').homedir(), '.tinyclaw', 'config');
 export const TINYCLAW_CONFIG_WORKSPACE = process.env.TINYCLAW_CONFIG_WORKSPACE
     || path.join(require('os').homedir(), '.tinyclaw', 'workspace');
+export const TINYCLAW_MEMORY_HOME = process.env.TINYCLAW_MEMORY_HOME
+    || path.join(require('os').homedir(), 'workspace', 'everything', 'tinyclaw', 'memory');
+export const MEMORY_CURSORS_DIR = path.join(TINYCLAW_CONFIG_HOME, 'memory-cursors');
+export const MEMORY_TMP_DIR = path.join(TINYCLAW_CONFIG_HOME, 'memory-tmp');
 
 // Config paths (from TINYCLAW_CONFIG_HOME)
 export const SETTINGS_FILE = path.join(TINYCLAW_CONFIG_HOME, 'settings.json');

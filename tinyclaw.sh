@@ -344,6 +344,10 @@ case "${1:-}" in
                 ;;
         esac
         ;;
+    memory)
+        shift
+        node "$SCRIPT_DIR/dist/memory/index.js" "$@"
+        ;;
     attach)
         tmux attach -t "$TMUX_SESSION"
         ;;
@@ -354,7 +358,7 @@ case "${1:-}" in
         local_names=$(IFS='|'; echo "${ALL_CHANNELS[*]}")
         echo -e "${BLUE}TinyClaw - Claude Code + Messaging Channels${NC}"
         echo ""
-        echo "Usage: $0 {start|stop|restart|status|setup|send|logs|reset|channels|provider|model|agent|team|attach}"
+        echo "Usage: $0 {start|stop|restart|status|setup|send|logs|reset|channels|provider|model|agent|team|memory|attach}"
         echo ""
         echo "Commands:"
         echo "  start                    Start TinyClaw"
@@ -370,6 +374,7 @@ case "${1:-}" in
         echo "  model [name]             Show or switch AI model"
         echo "  agent {list|add|remove|show|reset}  Manage agents"
         echo "  team {list|add|remove|show|visualize}  Manage teams"
+        echo "  memory {read|write|ingest|promote|inject|status}  Memory system"
         echo "  attach                   Attach to tmux session"
         echo ""
         echo "Examples:"

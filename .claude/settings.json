@@ -3,7 +3,14 @@
     "allow": [
       "Bash(npx tsc:*)",
       "Bash(npx vitest run:*)",
-      "Bash(pwd:*)"
+      "Bash(pwd:*)",
+      "Bash(tree:*)",
+      "Bash(find:*)",
+      "Edit",
+      "Write",
+      "Bash(npm install:*)",
+      "Bash(npm run:*)",
+      "Bash(tinyclaw memory:*)"
     ]
   }
 }
