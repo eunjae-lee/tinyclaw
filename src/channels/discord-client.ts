@@ -98,6 +98,7 @@ interface StreamingMessage {
     channel: DMChannel | TextChannel | ThreadChannel;
     lastContent: string;
     lastEditTime: number;
+    startTime: number;
 }
 
 // Track active streaming messages (messageId → StreamingMessage)
@@ -637,6 +638,7 @@ async function checkStreamingFiles(): Promise<void> {
                             channel: targetChannel,
                             lastContent: partial,
                             lastEditTime: Date.now(),
+                            startTime: Date.now(),
                         });
                     } catch (sendErr) {
                         log('WARN', `Failed to send initial streaming message: ${(sendErr as Error).message}`);
@@ -679,8 +681,10 @@ async function checkOutgoingQueue(): Promise<void> {
                 const streaming = streamingMessages.get(messageId);
 
                 if (streaming) {
-                    // Streaming → final transition: edit existing message with final content
+                    // Streaming → final transition
                     const targetChannel = streaming.channel;
+                    const streamingDuration = Date.now() - streaming.startTime;
+                    const RESEND_THRESHOLD_MS = 10_000;
 
                     // Send any attached files
                     if (responseData.files && responseData.files.length > 0) {
@@ -699,17 +703,36 @@ async function checkOutgoingQueue(): Promise<void> {
                         }
                     }
 
-                    // Final edit with complete response
                     if (responseText) {
                         const chunks = splitMessage(responseText);
+                        const pending = pendingMessages.get(messageId);
 
-                        // Edit the streaming message with the first chunk (remove cancel button)
-                        try {
-                            await streaming.discordMessage.edit({ content: chunks[0]!, components: [] });
-                        } catch (editErr) {
-                            log('WARN', `Failed to edit streaming message with final content: ${(editErr as Error).message}`);
-                            // Fall back to sending as a new message
-                            await targetChannel.send(chunks[0]!);
+                        if (streamingDuration >= RESEND_THRESHOLD_MS) {
+                            // Long streaming: delete the streaming message and resend for notification
+                            try {
+                                await streaming.discordMessage.delete();
+                            } catch (delErr) {
+                                log('WARN', `Failed to delete streaming message: ${(delErr as Error).message}`);
+                            }
+
+                            // Send first chunk as a reply to the original user message (triggers notification)
+                            try {
+                                if (pending) {
+                                    await pending.message.reply(chunks[0]!);
+                                } else {
+                                    await targetChannel.send(chunks[0]!);
+                                }
+                            } catch {
+                                await targetChannel.send(chunks[0]!);
+                            }
+                        } else {
+                            // Short streaming: just edit in place (user is likely still watching)
+                            try {
+                                await streaming.discordMessage.edit({ content: chunks[0]!, components: [] });
+                            } catch (editErr) {
+                                log('WARN', `Failed to edit streaming message with final content: ${(editErr as Error).message}`);
+                                await targetChannel.send(chunks[0]!);
+                            }
                         }
 
                         // Send remaining chunks as new messages
@@ -718,7 +741,7 @@ async function checkOutgoingQueue(): Promise<void> {
                         }
                     }
 
-                    log('INFO', `Finalized streaming response to ${sender} (${responseText.length} chars${responseData.files ? `, ${responseData.files.length} file(s)` : ''})`);
+                    log('INFO', `Finalized streaming response to ${sender} (${responseText.length} chars, ${streamingDuration}ms${responseData.files ? `, ${responseData.files.length} file(s)` : ''})`);
 
                     // Clean up
                     streamingMessages.delete(messageId);
