@@ -29,6 +29,7 @@ export const APPROVALS_DIR = path.join(TINYCLAW_CONFIG_HOME, 'approvals');
 export const APPROVALS_PENDING = path.join(APPROVALS_DIR, 'pending');
 export const APPROVALS_DECISIONS = path.join(APPROVALS_DIR, 'decisions');
 export const QUEUE_DEAD_LETTER = path.join(TINYCLAW_CONFIG_HOME, 'queue/dead-letter');
+export const QUEUE_CANCEL = path.join(TINYCLAW_CONFIG_HOME, 'queue/cancel');
 
 // Safety constants
 export const CLI_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes

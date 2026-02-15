@@ -8,7 +8,7 @@ import { ensureAgentDirectory } from './agent-setup';
 import { getMemoryForInjection, writeMemoryTempFile, cleanupMemoryTmpFiles } from '../memory/read';
 import { getSession, createSession } from './session-store';
 
-export async function runCommand(command: string, args: string[], cwd?: string, env?: Record<string, string>, timeoutMs?: number): Promise<string> {
+export async function runCommand(command: string, args: string[], cwd?: string, env?: Record<string, string>, timeoutMs?: number, signal?: AbortSignal): Promise<string> {
     return new Promise((resolve, reject) => {
         const child = spawn(command, args, {
             cwd: cwd || SCRIPT_DIR,
@@ -19,6 +19,7 @@ export async function runCommand(command: string, args: string[], cwd?: string, 
         let stdout = '';
         let stderr = '';
         let timedOut = false;
+        let aborted = false;
 
         const effectiveTimeout = timeoutMs ?? CLI_TIMEOUT_MS;
         const timer = setTimeout(() => {
@@ -31,6 +32,20 @@ export async function runCommand(command: string, args: string[], cwd?: string, 
                 }
             }, 5000);
         }, effectiveTimeout);
+
+        if (signal) {
+            const onAbort = () => {
+                aborted = true;
+                child.kill('SIGTERM');
+                setTimeout(() => { if (!child.killed) child.kill('SIGKILL'); }, 5000);
+            };
+            if (signal.aborted) {
+                onAbort();
+            } else {
+                signal.addEventListener('abort', onAbort, { once: true });
+                child.on('close', () => signal.removeEventListener('abort', onAbort));
+            }
+        }
 
         child.stdout.setEncoding('utf8');
         child.stderr.setEncoding('utf8');
@@ -50,6 +65,10 @@ export async function runCommand(command: string, args: string[], cwd?: string, 
 
         child.on('close', (code) => {
             clearTimeout(timer);
+            if (aborted) {
+                reject(new Error('Cancelled by user'));
+                return;
+            }
             if (timedOut) {
                 reject(new Error(`Command timed out after ${effectiveTimeout}ms`));
                 return;
@@ -72,7 +91,8 @@ export async function runCommandStreaming(
     onChunk: StreamChunkCallback,
     cwd?: string,
     env?: Record<string, string>,
-    timeoutMs?: number
+    timeoutMs?: number,
+    signal?: AbortSignal
 ): Promise<string> {
     return new Promise((resolve, reject) => {
         const child = spawn(command, args, {
@@ -85,6 +105,7 @@ export async function runCommandStreaming(
         let resultText = '';
         let stderr = '';
         let timedOut = false;
+        let aborted = false;
         let lineBuffer = '';
 
         const effectiveTimeout = timeoutMs ?? CLI_TIMEOUT_MS;
@@ -97,6 +118,20 @@ export async function runCommandStreaming(
                 }
             }, 5000);
         }, effectiveTimeout);
+
+        if (signal) {
+            const onAbort = () => {
+                aborted = true;
+                child.kill('SIGTERM');
+                setTimeout(() => { if (!child.killed) child.kill('SIGKILL'); }, 5000);
+            };
+            if (signal.aborted) {
+                onAbort();
+            } else {
+                signal.addEventListener('abort', onAbort, { once: true });
+                child.on('close', () => signal.removeEventListener('abort', onAbort));
+            }
+        }
 
         child.stdout.setEncoding('utf8');
         child.stderr.setEncoding('utf8');
@@ -157,6 +192,10 @@ export async function runCommandStreaming(
                 }
             }
 
+            if (aborted) {
+                reject(new Error('Cancelled by user'));
+                return;
+            }
             if (timedOut) {
                 reject(new Error(`Command timed out after ${effectiveTimeout}ms`));
                 return;
@@ -185,7 +224,8 @@ export async function invokeAgent(
     agents: Record<string, AgentConfig> = {},
     messageId?: string,
     sessionKey?: string,
-    onChunk?: StreamChunkCallback
+    onChunk?: StreamChunkCallback,
+    signal?: AbortSignal
 ): Promise<string> {
     // Ensure agent directory exists with config files
     const agentDir = path.join(workspacePath, agentId);
@@ -223,7 +263,7 @@ export async function invokeAgent(
         }
         codexArgs.push('--skip-git-repo-check', '--dangerously-bypass-approvals-and-sandbox', '--json', message);
 
-        const codexOutput = await runCommand('codex', codexArgs, workingDir);
+        const codexOutput = await runCommand('codex', codexArgs, workingDir, undefined, undefined, signal);
 
         // Parse JSONL output and extract final agent_message
         let response = '';
@@ -280,8 +320,8 @@ export async function invokeAgent(
         // Helper: run claude with streaming or batch depending on onChunk
         const runClaude = (args: string[]) =>
             onChunk
-                ? runCommandStreaming('claude', args, onChunk, workingDir, env)
-                : runCommand('claude', args, workingDir, env);
+                ? runCommandStreaming('claude', args, onChunk, workingDir, env, undefined, signal)
+                : runCommand('claude', args, workingDir, env, undefined, signal);
 
         if (sessionKey) {
             if (shouldReset) {

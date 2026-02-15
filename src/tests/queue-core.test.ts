@@ -9,6 +9,7 @@ vi.mock('../lib/config', () => ({
     QUEUE_OUTGOING: '/mock/queue/outgoing',
     QUEUE_PROCESSING: '/mock/queue/processing',
     QUEUE_DEAD_LETTER: '/mock/queue/dead-letter',
+    QUEUE_CANCEL: '/mock/queue/cancel',
     MAX_RETRY_COUNT: 3,
     LOG_FILE: '/mock/logs/queue.log',
     RESET_FLAG: '/mock/reset_flag',
@@ -66,6 +67,7 @@ describe('processMessage', () => {
         (configMock as any).QUEUE_PROCESSING = processingDir;
         (configMock as any).QUEUE_OUTGOING = outgoingDir;
         (configMock as any).QUEUE_DEAD_LETTER = deadLetterDir;
+        (configMock as any).QUEUE_CANCEL = path.join(tmpDir, 'cancel');
         (configMock as any).MAX_RETRY_COUNT = 3;
         (configMock as any).RESET_FLAG = path.join(tmpDir, 'reset_flag');
         (configMock as any).TINYCLAW_CONFIG_WORKSPACE = path.join(tmpDir, 'workspace');
@@ -123,6 +125,7 @@ describe('processMessage', () => {
             'msg_123',
             undefined,
             expect.any(Function),
+            expect.any(AbortSignal),
         );
     });
 
@@ -145,6 +148,7 @@ describe('processMessage', () => {
             'msg_123',
             undefined,
             expect.any(Function),
+            expect.any(AbortSignal),
         );
     });
 
@@ -166,6 +170,7 @@ describe('processMessage', () => {
             'msg_123',
             undefined,
             expect.any(Function),
+            expect.any(AbortSignal),
         );
     });
 
@@ -193,6 +198,7 @@ describe('processMessage', () => {
             'msg_123',
             undefined,
             expect.any(Function),
+            expect.any(AbortSignal),
         );
     });
 
@@ -303,6 +309,7 @@ describe('processMessage', () => {
             'msg_123',
             'thread_abc',
             expect.any(Function),
+            expect.any(AbortSignal),
         );
     });
 });
@@ -388,6 +395,7 @@ describe('processMessage - retry and dead-letter', () => {
         (configMock as any).QUEUE_PROCESSING = processingDir;
         (configMock as any).QUEUE_OUTGOING = outgoingDir;
         (configMock as any).QUEUE_DEAD_LETTER = deadLetterDir;
+        (configMock as any).QUEUE_CANCEL = path.join(tmpDir, 'cancel');
         (configMock as any).MAX_RETRY_COUNT = 3;
         (configMock as any).RESET_FLAG = path.join(tmpDir, 'reset_flag');
         (configMock as any).TINYCLAW_CONFIG_WORKSPACE = path.join(tmpDir, 'workspace');
@@ -561,6 +569,7 @@ describe('processMessage - streaming file lifecycle', () => {
         (configMock as any).QUEUE_PROCESSING = processingDir;
         (configMock as any).QUEUE_OUTGOING = outgoingDir;
         (configMock as any).QUEUE_DEAD_LETTER = path.join(tmpDir, 'dead-letter');
+        (configMock as any).QUEUE_CANCEL = path.join(tmpDir, 'cancel');
         (configMock as any).MAX_RETRY_COUNT = 3;
         (configMock as any).RESET_FLAG = path.join(tmpDir, 'reset_flag');
         (configMock as any).TINYCLAW_CONFIG_WORKSPACE = path.join(tmpDir, 'workspace');
@@ -607,6 +616,7 @@ describe('processMessage - streaming file lifecycle', () => {
             'msg_stream',
             undefined,
             expect.any(Function), // onChunk callback
+            expect.any(AbortSignal),
         );
     });
 

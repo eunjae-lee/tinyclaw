@@ -9,7 +9,7 @@ import path from 'path';
 import { MessageData, ResponseData, StreamingData } from './types';
 import {
     QUEUE_INCOMING, QUEUE_OUTGOING, QUEUE_PROCESSING,
-    QUEUE_DEAD_LETTER, MAX_RETRY_COUNT,
+    QUEUE_DEAD_LETTER, QUEUE_CANCEL, MAX_RETRY_COUNT, CLI_TIMEOUT_MS,
     RESET_FLAG,
     TINYCLAW_CONFIG_WORKSPACE,
     getSettings, getAgents
@@ -87,6 +87,9 @@ export async function processMessage(messageFile: string): Promise<void> {
         let lastStreamWrite = 0;
         const STREAM_THROTTLE_MS = 1000;
 
+        // Abort controller for user-initiated cancellation
+        const controller = new AbortController();
+
         const onChunk = (accumulated: string) => {
             const now = Date.now();
             if (now - lastStreamWrite < STREAM_THROTTLE_MS) return;
@@ -101,6 +104,7 @@ export async function processMessage(messageFile: string): Promise<void> {
                     partial: accumulated,
                     agent: agentId,
                     timestamp: now,
+                    cancelable: true,
                 };
                 fs.writeFileSync(streamingFile, JSON.stringify(streamingData));
             } catch (e) {
@@ -110,16 +114,65 @@ export async function processMessage(messageFile: string): Promise<void> {
 
         let finalResponse: string;
 
+        // Periodic "still working" updates when no streaming output for a while
+        const IDLE_NOTIFY_MS = 1 * 60 * 1000; // 1 minute
+        const startTime = Date.now();
+        const idleTimer = setInterval(() => {
+            // Check for cancel file
+            const cancelFile = path.join(QUEUE_CANCEL, `${messageId}.json`);
+            try {
+                if (fs.existsSync(cancelFile)) {
+                    log('INFO', `Cancel requested for message ${messageId}`);
+                    controller.abort();
+                    try { fs.unlinkSync(cancelFile); } catch { /* ignore */ }
+                    return;
+                }
+            } catch { /* ignore */ }
+
+            // Skip if we've received streaming output recently
+            if (lastStreamWrite > 0 && Date.now() - lastStreamWrite < IDLE_NOTIFY_MS) return;
+
+            const elapsedMin = Math.round((Date.now() - startTime) / 60000);
+            const timeoutMin = Math.round(CLI_TIMEOUT_MS / 60000);
+            const waitMsg = `_Still working... (${elapsedMin}m elapsed, will timeout at ${timeoutMin}m)_`;
+
+            try {
+                const streamingData: StreamingData = {
+                    status: 'streaming',
+                    channel,
+                    sender,
+                    messageId,
+                    partial: waitMsg,
+                    agent: agentId,
+                    timestamp: Date.now(),
+                    cancelable: true,
+                };
+                fs.writeFileSync(streamingFile, JSON.stringify(streamingData));
+            } catch { /* ignore */ }
+        }, IDLE_NOTIFY_MS);
+
         try {
-            finalResponse = await invokeAgent(agent, agentId, message, workspacePath, shouldReset, agents, messageId, sessionKey, onChunk);
+            finalResponse = await invokeAgent(agent, agentId, message, workspacePath, shouldReset, agents, messageId, sessionKey, onChunk, controller.signal);
         } catch (error) {
-            const provider = agent.provider || 'anthropic';
-            log('ERROR', `${provider === 'openai' ? 'Codex' : 'Claude'} error (agent: ${agentId}): ${(error as Error).message}`);
-            finalResponse = "Sorry, I encountered an error processing your request. Please check the queue logs.";
+            const errMsg = (error as Error).message || '';
+            if (errMsg === 'Cancelled by user') {
+                log('INFO', `Agent invocation cancelled by user (agent: ${agentId}, message: ${messageId})`);
+                finalResponse = '_Request cancelled by user._';
+            } else {
+                const provider = agent.provider || 'anthropic';
+                log('ERROR', `${provider === 'openai' ? 'Codex' : 'Claude'} error (agent: ${agentId}): ${errMsg}`);
+                finalResponse = "Sorry, I encountered an error processing your request. Please check the queue logs.";
+            }
         } finally {
+            clearInterval(idleTimer);
             // Clean up streaming file
             try {
                 if (fs.existsSync(streamingFile)) fs.unlinkSync(streamingFile);
+            } catch { /* ignore */ }
+            // Clean up cancel file if it arrived after abort
+            try {
+                const cancelFile = path.join(QUEUE_CANCEL, `${messageId}.json`);
+                if (fs.existsSync(cancelFile)) fs.unlinkSync(cancelFile);
             } catch { /* ignore */ }
         }
 

@@ -103,6 +103,7 @@ export interface StreamingData {
     partial: string;
     agent?: string;
     timestamp: number;
+    cancelable?: boolean;
 }
 
 export type StreamChunkCallback = (accumulated: string) => void;

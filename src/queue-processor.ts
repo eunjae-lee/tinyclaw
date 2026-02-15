@@ -14,7 +14,7 @@ import fs from 'fs';
 import path from 'path';
 import { QueueFile } from './lib/types';
 import {
-    QUEUE_INCOMING, QUEUE_OUTGOING, QUEUE_PROCESSING, QUEUE_DEAD_LETTER,
+    QUEUE_INCOMING, QUEUE_OUTGOING, QUEUE_PROCESSING, QUEUE_DEAD_LETTER, QUEUE_CANCEL,
     LOG_FILE, EVENTS_DIR,
     getSettings, getAgents
 } from './lib/config';
@@ -23,7 +23,7 @@ import { processMessage, peekAgentId, recoverStuckFiles } from './lib/queue-core
 import { cleanupStaleSessions } from './lib/session-store';
 
 // Ensure directories exist
-[QUEUE_INCOMING, QUEUE_OUTGOING, QUEUE_PROCESSING, QUEUE_DEAD_LETTER, path.dirname(LOG_FILE)].forEach(dir => {
+[QUEUE_INCOMING, QUEUE_OUTGOING, QUEUE_PROCESSING, QUEUE_DEAD_LETTER, QUEUE_CANCEL, path.dirname(LOG_FILE)].forEach(dir => {
     if (!fs.existsSync(dir)) {
         fs.mkdirSync(dir, { recursive: true });
     }

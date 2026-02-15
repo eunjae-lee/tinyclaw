@@ -18,7 +18,8 @@ import http from 'http';
 
 import {
     TINYCLAW_CONFIG_HOME, QUEUE_INCOMING, QUEUE_OUTGOING,
-    SETTINGS_FILE, APPROVALS_PENDING, APPROVALS_DECISIONS, RESET_FLAG
+    SETTINGS_FILE, APPROVALS_PENDING, APPROVALS_DECISIONS, RESET_FLAG,
+    QUEUE_CANCEL
 } from '../lib/config';
 import { extractAgentPrefix } from '../lib/routing';
 import { sanitizeFileName, buildUniqueFilePath, splitMessage } from '../lib/discord-utils';
@@ -30,7 +31,7 @@ const BOT_THREADS_FILE = path.join(TINYCLAW_CONFIG_HOME, 'bot-threads.json');
 const PENDING_MESSAGES_FILE = path.join(TINYCLAW_CONFIG_HOME, 'pending-messages.json');
 
 // Ensure directories exist
-[QUEUE_INCOMING, QUEUE_OUTGOING, path.dirname(LOG_FILE), FILES_DIR, APPROVALS_PENDING, APPROVALS_DECISIONS].forEach(dir => {
+[QUEUE_INCOMING, QUEUE_OUTGOING, path.dirname(LOG_FILE), FILES_DIR, APPROVALS_PENDING, APPROVALS_DECISIONS, QUEUE_CANCEL].forEach(dir => {
     if (!fs.existsSync(dir)) {
         fs.mkdirSync(dir, { recursive: true });
     }
@@ -89,6 +90,7 @@ interface StreamingData {
     partial: string;
     agent?: string;
     timestamp: number;
+    cancelable?: boolean;
 }
 
 interface StreamingMessage {
@@ -557,7 +559,16 @@ async function checkStreamingFiles(): Promise<void> {
                                 const displayText = partial.length > 2000
                                     ? partial.substring(0, 1950) + '\n\n*[streaming...]*'
                                     : partial;
-                                await existing.discordMessage.edit(displayText);
+
+                                const editOptions: { content: string; components?: ActionRowBuilder<ButtonBuilder>[] } = { content: displayText };
+                                if (data.cancelable) {
+                                    const cancelBtn = new ButtonBuilder()
+                                        .setCustomId(`cancel_${messageId}`)
+                                        .setLabel('Cancel')
+                                        .setStyle(ButtonStyle.Danger);
+                                    editOptions.components = [new ActionRowBuilder<ButtonBuilder>().addComponents(cancelBtn)];
+                                }
+                                await existing.discordMessage.edit(editOptions);
                                 existing.lastContent = partial;
                                 existing.lastEditTime = now;
                             } catch (editErr) {
@@ -598,14 +609,23 @@ async function checkStreamingFiles(): Promise<void> {
                             ? partial.substring(0, 1950) + '\n\n*[streaming...]*'
                             : partial;
 
+                        const sendOptions: { content: string; components?: ActionRowBuilder<ButtonBuilder>[] } = { content: displayText };
+                        if (data.cancelable) {
+                            const cancelBtn = new ButtonBuilder()
+                                .setCustomId(`cancel_${messageId}`)
+                                .setLabel('Cancel')
+                                .setStyle(ButtonStyle.Danger);
+                            sendOptions.components = [new ActionRowBuilder<ButtonBuilder>().addComponents(cancelBtn)];
+                        }
+
                         let sentMessage: Message;
                         if (pending.needsThread) {
-                            sentMessage = await targetChannel.send(displayText);
+                            sentMessage = await targetChannel.send(sendOptions);
                         } else {
                             try {
-                                sentMessage = await pending.message.reply(displayText);
+                                sentMessage = await pending.message.reply(sendOptions);
                             } catch {
-                                sentMessage = await targetChannel.send(displayText);
+                                sentMessage = await targetChannel.send(sendOptions);
                             }
                         }
 
@@ -680,9 +700,9 @@ async function checkOutgoingQueue(): Promise<void> {
                     if (responseText) {
                         const chunks = splitMessage(responseText);
 
-                        // Edit the streaming message with the first chunk
+                        // Edit the streaming message with the first chunk (remove cancel button)
                         try {
-                            await streaming.discordMessage.edit(chunks[0]!);
+                            await streaming.discordMessage.edit({ content: chunks[0]!, components: [] });
                         } catch (editErr) {
                             log('WARN', `Failed to edit streaming message with final content: ${(editErr as Error).message}`);
                             // Fall back to sending as a new message
@@ -1025,6 +1045,36 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     const buttonInteraction = interaction as ButtonInteraction;
     const customId = buttonInteraction.customId;
+
+    // Handle cancel button
+    if (customId.startsWith('cancel_')) {
+        const cancelMessageId = customId.substring('cancel_'.length);
+        try {
+            // Write cancel signal file
+            const cancelFile = path.join(QUEUE_CANCEL, `${cancelMessageId}.json`);
+            fs.writeFileSync(cancelFile, JSON.stringify({ messageId: cancelMessageId, timestamp: Date.now() }));
+
+            // Disable the button
+            const disabledBtn = new ButtonBuilder()
+                .setCustomId(`cancel_${cancelMessageId}`)
+                .setLabel('Cancelling...')
+                .setStyle(ButtonStyle.Danger)
+                .setDisabled(true);
+            const row = new ActionRowBuilder<ButtonBuilder>().addComponents(disabledBtn);
+
+            await buttonInteraction.update({
+                components: [row],
+            });
+
+            log('INFO', `Cancel requested for message ${cancelMessageId}`);
+        } catch (err) {
+            log('ERROR', `Failed to handle cancel: ${(err as Error).message}`);
+            try {
+                await buttonInteraction.reply({ content: 'Failed to cancel. Please try again.', ephemeral: true });
+            } catch { /* ignore */ }
+        }
+        return;
+    }
 
     // Parse action and request_id from customId
     let action: string;
