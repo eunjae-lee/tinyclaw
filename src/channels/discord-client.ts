@@ -582,6 +582,7 @@ async function checkStreamingFiles(): Promise<void> {
                     if (!pending) continue;
 
                     let targetChannel = pending.channel;
+                    let threadJustCreated = false;
 
                     // Create thread if needed
                     if (pending.needsThread) {
@@ -599,6 +600,7 @@ async function checkStreamingFiles(): Promise<void> {
                             targetChannel = thread;
                             pending.channel = thread;
                             pending.needsThread = false;
+                            threadJustCreated = true;
                         } catch (threadErr) {
                             log('WARN', `Failed to create thread for streaming: ${(threadErr as Error).message}`);
                         }
@@ -619,7 +621,8 @@ async function checkStreamingFiles(): Promise<void> {
                         }
 
                         let sentMessage: Message;
-                        if (pending.needsThread) {
+                        if (threadJustCreated || pending.needsThread) {
+                            // Send in thread (just created) or channel (thread creation failed)
                             sentMessage = await targetChannel.send(sendOptions);
                         } else {
                             try {
