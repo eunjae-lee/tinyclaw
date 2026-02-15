@@ -18,7 +18,7 @@ The queue system acts as a central coordinator between:
                      │ Write message.json
                      ↓
 ┌─────────────────────────────────────────────────────────────┐
-│                   ~/.tinyclaw/queue/                         │
+│                   ~/workspace/everything/tinyclaw/config/queue/                         │
 │                                                              │
 │  incoming/          processing/         outgoing/           │
 │  ├─ msg1.json  →   ├─ msg1.json   →   ├─ msg1.json        │
@@ -47,7 +47,7 @@ The queue system acts as a central coordinator between:
 ## Directory Structure
 
 ```
-~/.tinyclaw/
+~/workspace/everything/tinyclaw/config/
 ├── queue/
 │   ├── incoming/          # New messages from channels
 │   │   ├── msg_123456.json
@@ -296,7 +296,7 @@ This prevents confusion and teases the upcoming feature!
 
 ### Global Reset
 
-Creates `~/.tinyclaw/reset_flag`:
+Creates `~/workspace/everything/tinyclaw/config/reset_flag`:
 
 ```bash
 ./tinyclaw.sh reset
@@ -334,11 +334,11 @@ if (globalReset || agentReset) {
 
 ### Uploading Files
 
-Channels download files to `~/.tinyclaw/files/`:
+Channels download files to `~/workspace/everything/tinyclaw/config/files/`:
 
 ```
 User uploads: image.png
-→ Saved as: ~/.tinyclaw/files/telegram_123_image.png
+→ Saved as: ~/workspace/everything/tinyclaw/config/files/telegram_123_image.png
 → Message includes: [file: /absolute/path/to/image.png]
 ```
 
@@ -420,16 +420,16 @@ Old messages in `processing/` (crashed mid-process):
 
 ```bash
 # See pending messages
-ls ~/.tinyclaw/queue/incoming/
+ls ~/workspace/everything/tinyclaw/config/queue/incoming/
 
 # See processing
-ls ~/.tinyclaw/queue/processing/
+ls ~/workspace/everything/tinyclaw/config/queue/processing/
 
 # See responses waiting
-ls ~/.tinyclaw/queue/outgoing/
+ls ~/workspace/everything/tinyclaw/config/queue/outgoing/
 
 # Watch queue logs
-tail -f ~/.tinyclaw/logs/queue.log
+tail -f ~/workspace/everything/tinyclaw/config/logs/queue.log
 ```
 
 ### Common Issues
@@ -440,13 +440,13 @@ tail -f ~/.tinyclaw/logs/queue.log
 
 **Messages stuck in processing:**
 - AI CLI crashed or hung
-- Manual cleanup: `rm ~/.tinyclaw/queue/processing/*`
+- Manual cleanup: `rm ~/workspace/everything/tinyclaw/config/queue/processing/*`
 - Restart: `./tinyclaw.sh restart`
 
 **No responses generated:**
 - Check agent routing (wrong @agent_id?)
 - Check AI CLI is installed (claude/codex)
-- Check logs: `tail -f ~/.tinyclaw/logs/queue.log`
+- Check logs: `tail -f ~/workspace/everything/tinyclaw/config/logs/queue.log`
 
 **Agents not processing in parallel:**
 - Check TypeScript build: `npm run build`

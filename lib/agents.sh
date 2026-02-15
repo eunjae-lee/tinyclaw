@@ -161,7 +161,7 @@ agent_add() {
         "$SETTINGS_FILE" > "$tmp_file" && mv "$tmp_file" "$SETTINGS_FILE"
 
     # Create agent directory and copy configuration files
-    TINYCLAW_CONFIG_HOME="${TINYCLAW_CONFIG_HOME:-$HOME/.tinyclaw/config}"
+    TINYCLAW_CONFIG_HOME="${TINYCLAW_CONFIG_HOME:-$HOME/workspace/everything/tinyclaw/config}"
     mkdir -p "$AGENTS_DIR/$AGENT_ID"
 
     # Copy .claude directory

@@ -217,7 +217,7 @@ help me with this  ← goes to default agent (no prefix needed)
 
 ### Agent Configuration
 
-Agents are configured in `.tinyclaw/settings.json`:
+Agents are configured in `~/workspace/everything/tinyclaw/config/settings.json`:
 
 ```json
 {
@@ -340,7 +340,7 @@ Memory cron is installed automatically with `npm run features:install` or `npm r
                      │ Write message.json
                      ↓
 ┌─────────────────────────────────────────────────────────────┐
-│                   ~/.tinyclaw/queue/                         │
+│                   ~/workspace/everything/tinyclaw/config/queue/                         │
 │                                                              │
 │  incoming/          processing/         outgoing/           │
 │  ├─ msg1.json  →   ├─ msg1.json   →   ├─ msg1.json        │
@@ -389,7 +389,7 @@ See [docs/QUEUE.md](docs/QUEUE.md) for:
 
 ```
 tinyclaw/
-├── .tinyclaw/            # TinyClaw data
+├── ~/workspace/everything/tinyclaw/config/            # TinyClaw data
 │   ├── settings.json     # Configuration
 │   ├── queue/            # Message queue
 │   │   ├── incoming/
@@ -426,7 +426,7 @@ tinyclaw/
 
 ### Settings File
 
-Located at `.tinyclaw/settings.json`:
+Located at `~/workspace/everything/tinyclaw/config/settings.json`:
 
 ```json
 {
@@ -525,7 +525,7 @@ See [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) for detailed solutions.
 
 ```bash
 # Reset everything (preserves settings)
-tinyclaw stop && rm -rf .tinyclaw/queue/* && tinyclaw start
+tinyclaw stop && rm -rf ~/workspace/everything/tinyclaw/config/queue/* && tinyclaw start
 
 # Reset WhatsApp
 tinyclaw channels reset whatsapp
@@ -541,7 +541,7 @@ tinyclaw logs all
 
 - Bash version error → Install bash 4.0+: `brew install bash`
 - WhatsApp not connecting → Reset auth: `tinyclaw channels reset whatsapp`
-- Messages stuck → Clear queue: `rm -rf .tinyclaw/queue/processing/*`
+- Messages stuck → Clear queue: `rm -rf ~/workspace/everything/tinyclaw/config/queue/processing/*`
 - Agent not found → Check: `tinyclaw agent list`
 
 **Need help?**

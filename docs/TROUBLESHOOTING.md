@@ -52,7 +52,7 @@ tinyclaw restart
 - Multiple WhatsApp Web sessions active
 
 **Solution:**
-1. Delete session: `rm -rf .tinyclaw/whatsapp-session/`
+1. Delete session: `rm -rf ~/workspace/everything/tinyclaw/config/whatsapp-session/`
 2. Restart: `tinyclaw restart`
 3. Scan new QR code immediately
 
@@ -95,9 +95,9 @@ tmux attach -t tinyclaw
 ```
 
 The QR code appears in the WhatsApp pane. If it's not visible:
-1. Check if WhatsApp is enabled: `cat .tinyclaw/settings.json | jq '.channels.enabled'`
+1. Check if WhatsApp is enabled: `cat ~/workspace/everything/tinyclaw/config/settings.json | jq '.channels.enabled'`
 2. Check WhatsApp process: `pgrep -f whatsapp-client.ts`
-3. View logs: `tail -f .tinyclaw/logs/whatsapp.log`
+3. View logs: `tail -f ~/workspace/everything/tinyclaw/config/logs/whatsapp.log`
 
 ## Queue Issues
 
@@ -108,7 +108,7 @@ The QR code appears in the WhatsApp pane. If it's not visible:
 tinyclaw status
 
 # Check incoming queue
-ls -la .tinyclaw/queue/incoming/
+ls -la ~/workspace/everything/tinyclaw/config/queue/incoming/
 
 # View queue logs
 tinyclaw logs queue
@@ -117,7 +117,7 @@ tinyclaw logs queue
 **Checklist:**
 - ✅ Queue processor is running
 - ✅ Claude Code CLI is installed: `claude --version`
-- ✅ Messages aren't stuck in processing: `ls .tinyclaw/queue/processing/`
+- ✅ Messages aren't stuck in processing: `ls ~/workspace/everything/tinyclaw/config/queue/processing/`
 
 ### Messages stuck in processing
 
@@ -125,7 +125,7 @@ This happens when the queue processor crashes mid-message:
 
 ```bash
 # Clear stuck messages
-rm -rf .tinyclaw/queue/processing/*
+rm -rf ~/workspace/everything/tinyclaw/config/queue/processing/*
 
 # Restart TinyClaw
 tinyclaw restart
@@ -135,7 +135,7 @@ tinyclaw restart
 
 ```bash
 # Check outgoing queue
-ls -la .tinyclaw/queue/outgoing/
+ls -la ~/workspace/everything/tinyclaw/config/queue/outgoing/
 
 # Check channel client logs
 tinyclaw logs discord
@@ -156,12 +156,12 @@ If you see "Agent 'xyz' not found":
 
 2. Verify agent ID is lowercase and matches exactly:
    ```bash
-   cat .tinyclaw/settings.json | jq '.agents'
+   cat ~/workspace/everything/tinyclaw/config/settings.json | jq '.agents'
    ```
 
 3. Check settings file is valid JSON:
    ```bash
-   cat .tinyclaw/settings.json | jq
+   cat ~/workspace/everything/tinyclaw/config/settings.json | jq
    ```
 
 ### Wrong agent responding
@@ -180,7 +180,7 @@ If messages go to the wrong agent:
 
 3. **Check logs:**
    ```bash
-   tail -f .tinyclaw/logs/queue.log | grep "Routing"
+   tail -f ~/workspace/everything/tinyclaw/config/logs/queue.log | grep "Routing"
    ```
 
 ### Conversation not resetting
@@ -226,7 +226,7 @@ If agents aren't being created:
 
 1. Check workspace path:
    ```bash
-   cat .tinyclaw/settings.json | jq '.workspace.path'
+   cat ~/workspace/everything/tinyclaw/config/settings.json | jq '.workspace.path'
    ```
 
 2. Verify workspace exists:
@@ -250,7 +250,7 @@ If new agents don't have `.claude/`, `heartbeat.md`, or `AGENTS.md`:
 
 1. Check templates exist:
    ```bash
-   ls -la ~/.tinyclaw/{.claude,heartbeat.md,AGENTS.md}
+   ls -la ~/workspace/everything/tinyclaw/config/{.claude,heartbeat.md,AGENTS.md}
    ```
 
 2. Run setup to create templates:
@@ -260,9 +260,9 @@ If new agents don't have `.claude/`, `heartbeat.md`, or `AGENTS.md`:
 
 3. Manually copy if needed:
    ```bash
-   cp -r .claude ~/.tinyclaw/
-   cp heartbeat.md ~/.tinyclaw/
-   cp AGENTS.md ~/.tinyclaw/
+   cp -r .claude ~/workspace/everything/tinyclaw/config/
+   cp heartbeat.md ~/workspace/everything/tinyclaw/config/
+   cp AGENTS.md ~/workspace/everything/tinyclaw/config/
    ```
 
 ## Tool Approval Issues
@@ -273,13 +273,13 @@ If the Discord bot isn't sending approval requests:
 
 1. **Check admin user ID is set:**
    ```bash
-   cat .tinyclaw/settings.json | jq '.admin_user_id'
+   cat ~/workspace/everything/tinyclaw/config/settings.json | jq '.admin_user_id'
    ```
 
 2. **Verify it's a valid Discord user ID:**
    - Open Discord Settings → Advanced → Enable "Developer Mode"
    - Right-click your username → "Copy User ID"
-   - Update settings: edit `.tinyclaw/settings.json`
+   - Update settings: edit `~/workspace/everything/tinyclaw/config/settings.json`
 
 3. **Check the bot can DM you:**
    - Make sure you share a server with the bot
@@ -287,8 +287,8 @@ If the Discord bot isn't sending approval requests:
 
 4. **Check approvals directories exist:**
    ```bash
-   ls ~/.tinyclaw/approvals/pending/
-   ls ~/.tinyclaw/approvals/decisions/
+   ls ~/workspace/everything/tinyclaw/config/approvals/pending/
+   ls ~/workspace/everything/tinyclaw/config/approvals/decisions/
    ```
 
 5. **Check Discord logs:**
@@ -311,7 +311,7 @@ If tools are always denied due to timeout:
 
 2. **Check pending files are being created:**
    ```bash
-   ls ~/.tinyclaw/approvals/pending/
+   ls ~/workspace/everything/tinyclaw/config/approvals/pending/
    ```
 
 3. **Check Discord client is running:**
@@ -325,7 +325,7 @@ If clicking "Always allow" doesn't add the tool permanently:
 
 1. **Check settings.json is writable:**
    ```bash
-   ls -la ~/.tinyclaw/settings.json
+   ls -la ~/workspace/everything/tinyclaw/config/settings.json
    ```
 
 2. **Verify `jq` is installed** (required by the hook script):
@@ -338,7 +338,7 @@ If clicking "Always allow" doesn't add the tool permanently:
 
 3. **Check the tool was added:**
    ```bash
-   cat .tinyclaw/settings.json | jq '.permissions.allowedTools'
+   cat ~/workspace/everything/tinyclaw/config/settings.json | jq '.permissions.allowedTools'
    ```
 
 ### Hook script not running
@@ -357,7 +357,7 @@ If tools are being approved without prompting:
 
 3. **Check no allowedTools are configured** (if empty, all tools are allowed by default):
    ```bash
-   cat .tinyclaw/settings.json | jq '.permissions.allowedTools'
+   cat ~/workspace/everything/tinyclaw/config/settings.json | jq '.permissions.allowedTools'
    ```
 
 ### Stale pending approvals
@@ -366,8 +366,8 @@ If old approval files are accumulating:
 
 ```bash
 # Clear all pending approvals
-rm -f ~/.tinyclaw/approvals/pending/*.json
-rm -f ~/.tinyclaw/approvals/decisions/*.json
+rm -f ~/workspace/everything/tinyclaw/config/approvals/pending/*.json
+rm -f ~/workspace/everything/tinyclaw/config/approvals/decisions/*.json
 ```
 
 ## Update Issues
@@ -410,7 +410,7 @@ If bundle download fails during update:
    tar -xzf tinyclaw-bundle.tar.gz -C temp-update
 
    # Backup current installation
-   cp -r ~/tinyclaw ~/.tinyclaw/backups/manual-backup-$(date +%Y%m%d)
+   cp -r ~/tinyclaw ~/workspace/everything/tinyclaw/config/backups/manual-backup-$(date +%Y%m%d)
 
    # Replace files
    cp -r temp-update/tinyclaw/* ~/tinyclaw/
@@ -422,11 +422,11 @@ If update breaks TinyClaw:
 
 ```bash
 # Find your backup
-ls ~/.tinyclaw/backups/
+ls ~/workspace/everything/tinyclaw/config/backups/
 
 # Restore from backup
-BACKUP_DIR=$(ls -t ~/.tinyclaw/backups/ | head -1)
-cp -r ~/.tinyclaw/backups/$BACKUP_DIR/* $HOME/tinyclaw/
+BACKUP_DIR=$(ls -t ~/workspace/everything/tinyclaw/config/backups/ | head -1)
+cp -r ~/workspace/everything/tinyclaw/config/backups/$BACKUP_DIR/* $HOME/tinyclaw/
 
 # Restart
 tinyclaw restart
@@ -461,23 +461,23 @@ ps aux | grep -E 'claude|codex|node' | awk '{print $4, $11}'
 **Solutions:**
 - Restart TinyClaw: `tinyclaw restart`
 - Reset conversations: `tinyclaw reset`
-- Clear old sessions: `rm -rf .tinyclaw/whatsapp-session/.wwebjs_*`
+- Clear old sessions: `rm -rf ~/workspace/everything/tinyclaw/config/whatsapp-session/.wwebjs_*`
 
 ### Slow message responses
 
 1. **Check queue depth:**
    ```bash
-   ls .tinyclaw/queue/incoming/ | wc -l
+   ls ~/workspace/everything/tinyclaw/config/queue/incoming/ | wc -l
    ```
 
 2. **Check processing queue:**
    ```bash
-   ls .tinyclaw/queue/processing/
+   ls ~/workspace/everything/tinyclaw/config/queue/processing/
    ```
 
 3. **Monitor AI response time:**
    ```bash
-   tail -f .tinyclaw/logs/queue.log | grep "Processing completed"
+   tail -f ~/workspace/everything/tinyclaw/config/logs/queue.log | grep "Processing completed"
    ```
 
 ## Log Analysis
@@ -496,22 +496,22 @@ tinyclaw restart
 
 **Find errors:**
 ```bash
-grep -i error .tinyclaw/logs/*.log
+grep -i error ~/workspace/everything/tinyclaw/config/logs/*.log
 ```
 
 **Track message routing:**
 ```bash
-grep "Routing" .tinyclaw/logs/queue.log
+grep "Routing" ~/workspace/everything/tinyclaw/config/logs/queue.log
 ```
 
 **Monitor agent activity:**
 ```bash
-tail -f .tinyclaw/logs/queue.log | grep "agent:"
+tail -f ~/workspace/everything/tinyclaw/config/logs/queue.log | grep "agent:"
 ```
 
 **Check heartbeat timing:**
 ```bash
-grep "Heartbeat" .tinyclaw/logs/heartbeat.log
+grep "Heartbeat" ~/workspace/everything/tinyclaw/config/logs/heartbeat.log
 ```
 
 ## Still Having Issues?
@@ -529,7 +529,7 @@ grep "Heartbeat" .tinyclaw/logs/heartbeat.log
 3. **Restart from scratch:**
    ```bash
    tinyclaw stop
-   rm -rf .tinyclaw/queue/*
+   rm -rf ~/workspace/everything/tinyclaw/config/queue/*
    tinyclaw start
    ```
 
@@ -545,9 +545,9 @@ Quick reference for common recovery scenarios:
 ```bash
 # Full reset (preserves settings)
 tinyclaw stop
-rm -rf .tinyclaw/queue/*
-rm -rf .tinyclaw/channels/*
-rm -rf .tinyclaw/whatsapp-session/*
+rm -rf ~/workspace/everything/tinyclaw/config/queue/*
+rm -rf ~/workspace/everything/tinyclaw/config/channels/*
+rm -rf ~/workspace/everything/tinyclaw/config/whatsapp-session/*
 tinyclaw start
 
 # Complete reinstall

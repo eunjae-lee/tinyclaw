@@ -4,9 +4,9 @@ import { Settings, Credentials, AgentConfig, PermissionConfig, CLAUDE_MODEL_IDS,
 
 export const SCRIPT_DIR = path.resolve(__dirname, '../..');
 export const TINYCLAW_CONFIG_HOME = process.env.TINYCLAW_CONFIG_HOME
-    || path.join(require('os').homedir(), '.tinyclaw', 'config');
+    || path.join(require('os').homedir(), 'workspace', 'everything', 'tinyclaw', 'config');
 export const TINYCLAW_CONFIG_WORKSPACE = process.env.TINYCLAW_CONFIG_WORKSPACE
-    || path.join(require('os').homedir(), '.tinyclaw', 'workspace');
+    || path.join(require('os').homedir(), 'workspace', 'everything', 'tinyclaw', 'workspace');
 export const TINYCLAW_MEMORY_HOME = process.env.TINYCLAW_MEMORY_HOME
     || path.join(require('os').homedir(), 'workspace', 'everything', 'tinyclaw', 'memory');
 export const MEMORY_CURSORS_DIR = path.join(TINYCLAW_CONFIG_HOME, 'memory-cursors');

@@ -39,7 +39,7 @@ interface Decision {
 // --- Constants ---
 
 const TINYCLAW_CONFIG_HOME = process.env.TINYCLAW_CONFIG_HOME
-    || path.join(require('os').homedir(), '.tinyclaw', 'config');
+    || path.join(require('os').homedir(), 'workspace', 'everything', 'tinyclaw', 'config');
 const SETTINGS_FILE = path.join(TINYCLAW_CONFIG_HOME, 'settings.json');
 const AGENT_ID = process.env.TINYCLAW_AGENT_ID || 'default';
 const MESSAGE_ID = process.env.TINYCLAW_MESSAGE_ID || '';

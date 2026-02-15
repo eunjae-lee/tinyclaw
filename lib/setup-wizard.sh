@@ -3,8 +3,8 @@
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-TINYCLAW_CONFIG_HOME="${TINYCLAW_CONFIG_HOME:-$HOME/.tinyclaw/config}"
-TINYCLAW_CONFIG_WORKSPACE="${TINYCLAW_CONFIG_WORKSPACE:-$HOME/.tinyclaw/workspace}"
+TINYCLAW_CONFIG_HOME="${TINYCLAW_CONFIG_HOME:-$HOME/workspace/everything/tinyclaw/config}"
+TINYCLAW_CONFIG_WORKSPACE="${TINYCLAW_CONFIG_WORKSPACE:-$HOME/workspace/everything/tinyclaw/workspace}"
 SETTINGS_FILE="$TINYCLAW_CONFIG_HOME/settings.json"
 CREDENTIALS_FILE="$TINYCLAW_CONFIG_HOME/credentials.json"
 

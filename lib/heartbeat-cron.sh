@@ -3,8 +3,8 @@
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-TINYCLAW_CONFIG_HOME="${TINYCLAW_CONFIG_HOME:-$HOME/.tinyclaw/config}"
-TINYCLAW_CONFIG_WORKSPACE="${TINYCLAW_CONFIG_WORKSPACE:-$HOME/.tinyclaw/workspace}"
+TINYCLAW_CONFIG_HOME="${TINYCLAW_CONFIG_HOME:-$HOME/workspace/everything/tinyclaw/config}"
+TINYCLAW_CONFIG_WORKSPACE="${TINYCLAW_CONFIG_WORKSPACE:-$HOME/workspace/everything/tinyclaw/workspace}"
 LOG_FILE="$TINYCLAW_CONFIG_HOME/logs/heartbeat.log"
 QUEUE_INCOMING="$TINYCLAW_CONFIG_HOME/queue/incoming"
 QUEUE_OUTGOING="$TINYCLAW_CONFIG_HOME/queue/outgoing"

@@ -16,7 +16,7 @@ fi
 TMUX_SESSION="tinyclaw"
 
 # Config home
-TINYCLAW_CONFIG_HOME="${TINYCLAW_CONFIG_HOME:-$HOME/.tinyclaw/config}"
+TINYCLAW_CONFIG_HOME="${TINYCLAW_CONFIG_HOME:-$HOME/workspace/everything/tinyclaw/config}"
 export TINYCLAW_CONFIG_HOME
 SETTINGS_FILE="$TINYCLAW_CONFIG_HOME/settings.json"
 LOG_DIR="$TINYCLAW_CONFIG_HOME/logs"

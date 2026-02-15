@@ -50,7 +50,7 @@ declare -A CHANNEL_TOKEN_ENV=(
 )
 
 # Credentials file (secrets — git-ignored)
-CREDENTIALS_FILE="${TINYCLAW_CONFIG_HOME:-$HOME/.tinyclaw/config}/credentials.json"
+CREDENTIALS_FILE="${TINYCLAW_CONFIG_HOME:-$HOME/workspace/everything/tinyclaw/config}/credentials.json"
 
 # Runtime state: filled by load_settings
 ACTIVE_CHANNELS=()
@@ -79,7 +79,7 @@ load_settings() {
     WORKSPACE_PATH=$(jq -r '.workspace.path // empty' "$SETTINGS_FILE" 2>/dev/null)
     if [ -z "$WORKSPACE_PATH" ]; then
         # Fallback for old configs without workspace
-        WORKSPACE_PATH="${TINYCLAW_CONFIG_WORKSPACE:-$HOME/.tinyclaw/workspace}"
+        WORKSPACE_PATH="${TINYCLAW_CONFIG_WORKSPACE:-$HOME/workspace/everything/tinyclaw/workspace}"
     fi
 
     # Read enabled channels array

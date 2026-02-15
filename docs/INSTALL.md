@@ -11,7 +11,7 @@ curl -fsSL https://raw.githubusercontent.com/jlia0/tinyclaw/main/scripts/remote-
 This one-line command:
 - ✅ Checks all dependencies (node, npm, tmux, claude)
 - ✅ Downloads pre-built bundle (no npm install needed!)
-- ✅ Installs to `~/.tinyclaw`
+- ✅ Installs to `~/workspace/everything/tinyclaw/config`
 - ✅ Creates global `tinyclaw` command
 - ✅ Falls back to source install if no bundle available
 
@@ -50,7 +50,7 @@ curl -fsSL https://raw.githubusercontent.com/jlia0/tinyclaw/main/scripts/remote-
 5. Ready to use!
 
 **Install location:**
-- `~/.tinyclaw` (user directory)
+- `~/workspace/everything/tinyclaw/config` (user directory)
 
 ### Option 2: Manual Bundle Install
 
@@ -146,7 +146,7 @@ cd /path/to/tinyclaw
 ./scripts/uninstall.sh
 
 # Or remove everything (CLI + installation)
-rm -rf ~/.tinyclaw
+rm -rf ~/workspace/everything/tinyclaw/config
 sudo rm /usr/local/bin/tinyclaw  # or ~/.local/bin/tinyclaw
 ```
 

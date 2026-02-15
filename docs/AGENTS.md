@@ -52,7 +52,7 @@ The agent management feature enables you to:
 │  │ AGENTS.md    │  │ AGENTS.md    │  │ AGENTS.md    │     │
 │  └──────────────┘  └──────────────┘  └──────────────┘     │
 │                                                              │
-│  Shared: ~/.tinyclaw/ (channels, files, logs, queue)       │
+│  Shared: ~/workspace/everything/tinyclaw/config/ (channels, files, logs, queue)       │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -76,7 +76,7 @@ const routing = parseAgentRouting(rawMessage, agents);
 
 ### 2. Agent Configuration
 
-Each agent has its own configuration in `.tinyclaw/settings.json`:
+Each agent has its own configuration in `~/workspace/everything/tinyclaw/config/settings.json`:
 
 ```json
 {
@@ -142,10 +142,10 @@ Each agent has its own isolated workspace directory with complete copies of conf
 
 **Templates & Shared Resources:**
 
-Templates and shared resources are stored in `~/.tinyclaw/`:
+Templates and shared resources are stored in `~/workspace/everything/tinyclaw/config/`:
 
 ```
-~/.tinyclaw/
+~/workspace/everything/tinyclaw/config/
 ├── .claude/           # Template: Copied to each new agent
 ├── heartbeat.md       # Template: Copied to each new agent
 ├── AGENTS.md          # Template: Copied to each new agent
@@ -165,7 +165,7 @@ Templates and shared resources are stored in `~/.tinyclaw/`:
 - Conversation history is isolated per agent (managed by Claude/Codex CLI)
 - Reset flags allow resetting individual agent conversations
 - File operations happen in the agent's directory
-- Templates stored in `~/.tinyclaw/` are copied when creating new agents
+- Templates stored in `~/workspace/everything/tinyclaw/config/` are copied when creating new agents
 - Uploaded files, message queues, and logs are shared (common dependencies)
 
 ### 4. Provider Execution
@@ -209,7 +209,7 @@ Claude CLI → PreToolUse hook → checks allowedTools
                        returns allow/deny to Claude
 ```
 
-**File-based IPC** in `~/.tinyclaw/approvals/`:
+**File-based IPC** in `~/workspace/everything/tinyclaw/config/approvals/`:
 - `pending/<request_id>.json` — hook writes, Discord reads
 - `decisions/<request_id>.json` — Discord writes, hook reads
 
@@ -271,7 +271,7 @@ The hook script:
 
 **Environment variables** passed to the hook:
 - `TINYCLAW_AGENT_ID` — the agent ID (e.g., `coder`)
-- `TINYCLAW_HOME` — path to `~/.tinyclaw`
+- `TINYCLAW_HOME` — path to `~/workspace/everything/tinyclaw/config`
 
 **Getting your Discord user ID:**
 1. Open Discord Settings → Advanced → Enable "Developer Mode"
@@ -309,7 +309,7 @@ This walks you through:
 
 **Manual Configuration:**
 
-Edit `.tinyclaw/settings.json`:
+Edit `~/workspace/everything/tinyclaw/config/settings.json`:
 
 ```json
 {
@@ -343,7 +343,7 @@ Edit `.tinyclaw/settings.json`:
 **Note:**
 - If both `prompt_file` and `system_prompt` are provided, `prompt_file` takes precedence
 - The `working_directory` is automatically set to `<workspace>/<agent_id>/` when creating agents
-- Each agent gets its own isolated directory with copies of templates from `~/.tinyclaw/`
+- Each agent gets its own isolated directory with copies of templates from `~/workspace/everything/tinyclaw/config/`
 
 ## Usage
 
@@ -529,7 +529,7 @@ This ensures backward compatibility with older configurations.
 
 Two types of reset flags:
 
-1. **Global reset:** `~/.tinyclaw/reset_flag` - resets all agents
+1. **Global reset:** `~/workspace/everything/tinyclaw/config/reset_flag` - resets all agents
 2. **Per-agent reset:** `<workspace>/<agent_id>/reset_flag` - resets specific agent
 
 Both are automatically cleaned up after use.
@@ -563,7 +563,7 @@ Files uploaded through messaging channels are automatically available to all age
 
 ```
 User uploads image.png via Telegram
-→ Saved to ~/.tinyclaw/files/telegram_123456_image.png
+→ Saved to ~/workspace/everything/tinyclaw/config/files/telegram_123456_image.png
 → Message includes: [file: /path/to/image.png]
 → Routed to agent
 → Agent can read/process the file
@@ -587,7 +587,7 @@ For detailed troubleshooting of agent-related issues, see [TROUBLESHOOTING.md](T
 - **Wrong agent responding** → Verify routing: `@agent_id message` (with space)
 - **Conversation not resetting** → Send message after: `tinyclaw agent reset <id>`
 - **CLI not found** → Install Claude Code or Codex CLI
-- **Workspace issues** → Check: `cat .tinyclaw/settings.json | jq '.workspace'`
+- **Workspace issues** → Check: `cat ~/workspace/everything/tinyclaw/config/settings.json | jq '.workspace'`
 - **Templates not copying** → Run: `tinyclaw setup`
 
 ## Implementation Details
@@ -619,7 +619,7 @@ interface ResponseData {
 
 **Templates:**
 ```
-~/.tinyclaw/
+~/workspace/everything/tinyclaw/config/
 ├── .claude/           # Copied to new agents
 ├── heartbeat.md       # Copied to new agents
 └── AGENTS.md          # Copied to new agents

@@ -20,7 +20,7 @@ Discord Client  -->  queue/incoming/  -->  Queue Processor  -->  queue/outgoing/
 
 ## Key Directories
 
-All runtime data lives under `TINYCLAW_CONFIG_HOME` (default: `~/.tinyclaw/config`, overridable via env var).
+All runtime data lives under `TINYCLAW_CONFIG_HOME` (default: `~/workspace/everything/tinyclaw/config`, overridable via env var).
 
 | Path | Purpose |
 |------|---------|
