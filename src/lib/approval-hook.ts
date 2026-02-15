@@ -44,6 +44,15 @@ const SETTINGS_FILE = path.join(TINYCLAW_CONFIG_HOME, 'settings.json');
 const AGENT_ID = process.env.TINYCLAW_AGENT_ID || 'default';
 const MESSAGE_ID = process.env.TINYCLAW_MESSAGE_ID || '';
 
+const HOOK_LOG_FILE = path.join(TINYCLAW_CONFIG_HOME, 'logs', 'approval-hook.log');
+
+function hookLog(msg: string): void {
+    try {
+        const ts = new Date().toISOString();
+        fs.appendFileSync(HOOK_LOG_FILE, `[${ts}] [agent:${AGENT_ID}] ${msg}\n`);
+    } catch { /* ignore */ }
+}
+
 const APPROVALS_DIR = path.join(TINYCLAW_CONFIG_HOME, 'approvals');
 const PENDING_DIR = path.join(APPROVALS_DIR, 'pending');
 const DECISIONS_DIR = path.join(APPROVALS_DIR, 'decisions');
@@ -57,12 +66,25 @@ const SUBCMD_TOOLS = new Set([
 // --- Helpers ---
 
 function allow(): never {
-    process.stdout.write('{"permissionDecision":"allow"}');
+    const output = JSON.stringify({
+        hookSpecificOutput: {
+            hookEventName: 'PreToolUse',
+            permissionDecision: 'allow',
+        },
+    });
+    process.stdout.write(output);
     process.exit(0);
 }
 
 function deny(): never {
-    process.stdout.write('{"permissionDecision":"deny"}');
+    const output = JSON.stringify({
+        hookSpecificOutput: {
+            hookEventName: 'PreToolUse',
+            permissionDecision: 'deny',
+            permissionDecisionReason: 'Denied by TinyClaw approval hook',
+        },
+    });
+    process.stdout.write(output);
     process.exit(0);
 }
 
@@ -135,7 +157,10 @@ async function main(): Promise<void> {
     const input: HookInput = JSON.parse(Buffer.concat(chunks).toString('utf8'));
 
     const toolName = input.tool_name;
+    hookLog(`Hook invoked for tool: ${toolName || '(none)'} cwd=${process.cwd()}`);
+
     if (!toolName) {
+        hookLog('No tool name — allowing');
         allow();
     }
 
@@ -163,6 +188,7 @@ async function main(): Promise<void> {
     }
 
     if (isAllowedByPatterns(allowedTools, toolName!, bashCmd)) {
+        hookLog(`Tool ${toolName} matched allowedTools pattern — allowing`);
         allow();
     }
 
@@ -177,6 +203,7 @@ async function main(): Promise<void> {
         }
     }
 
+    hookLog(`Tool ${toolName} (pattern: ${toolPattern}) NOT pre-approved — requesting approval`);
     // --- Tool is NOT pre-approved — request approval via file-based IPC ---
 
     fs.mkdirSync(PENDING_DIR, { recursive: true });

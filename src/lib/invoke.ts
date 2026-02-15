@@ -318,10 +318,12 @@ export async function invokeAgent(
         };
 
         // Helper: run claude with streaming or batch depending on onChunk
-        const runClaude = (args: string[]) =>
-            onChunk
+        const runClaude = (args: string[]) => {
+            log('INFO', `Running claude in ${workingDir} with args: ${args.filter(a => a !== message).join(' ')}`);
+            return onChunk
                 ? runCommandStreaming('claude', args, onChunk, workingDir, env, undefined, signal)
                 : runCommand('claude', args, workingDir, env, undefined, signal);
+        };
 
         if (sessionKey) {
             if (shouldReset) {
