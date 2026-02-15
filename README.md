@@ -2,13 +2,13 @@
 
 **Multi-agent, multi-channel, 24/7 AI assistant**
 
-Run multiple AI agents simultaneously with isolated workspaces and conversation contexts. Route messages to specialized agents using simple `@agent_id` syntax.
+Run multiple AI agents simultaneously with isolated workspaces and conversation contexts. Route messages to specialized agents using simple `!agent_id` syntax.
 
 ## ✨ Features
 
 - ✅ **Multi-agent** - Run multiple isolated AI agents with specialized roles
 - ✅ **Multiple AI providers** - Anthropic Claude (Sonnet/Opus) and OpenAI (GPT/Codex)
-- ✅ **Multi-channel** - Discord, WhatsApp, and Telegram
+- ✅ **Multi-channel** - Discord (more channels planned)
 - ✅ **Parallel processing** - Agents process messages concurrently
 - ✅ **Interactive tool approvals** - Approve/deny agent tool use via Discord buttons
 - ✅ **Persistent sessions** - Conversation context maintained across restarts
@@ -58,8 +58,8 @@ tinyclaw start  # Runs interactive setup wizard
 
 The setup wizard will guide you through:
 
-1. **Channel selection** - Choose Discord, WhatsApp, and/or Telegram
-2. **Bot tokens** - Enter tokens for enabled channels
+1. **Channel selection** - Enable Discord
+2. **Bot token** - Enter your Discord bot token
 3. **Workspace setup** - Name your workspace directory
 4. **Default agent** - Configure your main AI assistant
 5. **AI provider** - Select Anthropic (Claude) or OpenAI
@@ -68,7 +68,7 @@ The setup wizard will guide you through:
 8. **Heartbeat interval** - Set proactive check-in frequency
 
 <details>
-<summary><b>📱 Channel Setup Guides</b></summary>
+<summary><b>📱 Channel Setup Guide</b></summary>
 
 ### Discord Setup
 
@@ -77,26 +77,6 @@ The setup wizard will guide you through:
 3. Copy bot token
 4. Enable "Message Content Intent"
 5. Invite bot using OAuth2 URL Generator
-
-### Telegram Setup
-
-1. Open Telegram → Search `@BotFather`
-2. Send `/newbot` → Follow prompts
-3. Copy bot token
-4. Start chat with your bot
-
-### WhatsApp Setup
-
-After starting TinyClaw, scan the QR code:
-
-```
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-     WhatsApp QR Code
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[QR CODE HERE]
-
-📱 Settings → Linked Devices → Link a Device
-```
 
 </details>
 
@@ -113,7 +93,7 @@ Commands work with `tinyclaw` (if CLI installed) or `./tinyclaw.sh` (direct scri
 | `restart`     | Restart TinyClaw                                          | `tinyclaw restart`    |
 | `status`      | Show current status and activity                          | `tinyclaw status`     |
 | `setup`       | Run setup wizard (reconfigure)                            | `tinyclaw setup`      |
-| `logs [type]` | View logs (discord/telegram/whatsapp/queue/heartbeat/all) | `tinyclaw logs queue` |
+| `logs [type]` | View logs (discord/queue/heartbeat/all) | `tinyclaw logs queue` |
 | `attach`      | Attach to tmux session                                    | `tinyclaw attach`     |
 
 ### Agent Commands
@@ -134,84 +114,53 @@ Commands work with `tinyclaw` (if CLI installed) or `./tinyclaw.sh` (direct scri
 | `provider <name> --model <model>` | Switch provider and model    | `tinyclaw provider openai --model gpt-5.3-codex` |
 | `model [name]`                    | Show or switch AI model      | `tinyclaw model opus`                            |
 | `reset`                           | Reset all conversations      | `tinyclaw reset`                                 |
-| `channels reset <channel>`        | Reset channel authentication | `tinyclaw channels reset whatsapp`               |
+| `channels reset <channel>`        | Reset channel authentication | `tinyclaw channels reset discord`                |
 
 ### Memory Commands
 
-| Command                                  | Description                                | Example                                    |
-| ---------------------------------------- | ------------------------------------------ | ------------------------------------------ |
-| `memory read`                            | Show today's daily + mid-term memory       | `tinyclaw memory read`                     |
-| `memory read --layer <layer>`            | Read specific layer (daily/mid-term/long-term/all) | `tinyclaw memory read --layer long-term` |
-| `memory write "<text>"`                  | Save a fact to long-term memory            | `tinyclaw memory write "We use Prisma"`    |
-| `memory status`                          | Show memory file sizes and dates           | `tinyclaw memory status`                   |
-| `memory ingest`                          | Ingest session transcripts (runs hourly via cron) | `tinyclaw memory ingest`             |
-| `memory promote daily`                   | Promote daily logs to mid-term summary     | `tinyclaw memory promote daily`            |
-| `memory promote weekly`                  | Promote mid-term to long-term memory       | `tinyclaw memory promote weekly`           |
+Memory is available via the feature system:
 
-### Update Commands
-
-| Command  | Description                       | Example           |
-| -------- | --------------------------------- | ----------------- |
-| `update` | Update TinyClaw to latest version | `tinyclaw update` |
-
-<details>
-<summary><b>Update Details</b></summary>
-
-**Auto-detection:** TinyClaw checks for updates on startup (once per hour).
-
-**Manual update:**
-
-```bash
-tinyclaw update
-```
-
-This will:
-
-1. Check for latest release
-2. Show changelog URL
-3. Download bundle
-4. Create backup of current installation
-5. Install new version
-
-**Disable update checks:**
-
-```bash
-export TINYCLAW_SKIP_UPDATE_CHECK=1
-```
-
-</details>
+| Command                                          | Description                                        | Example                                                |
+| ------------------------------------------------ | -------------------------------------------------- | ------------------------------------------------------ |
+| `feature memory read`                            | Show today's daily + mid-term memory               | `tinyclaw feature memory read`                         |
+| `feature memory read --layer <layer>`            | Read specific layer (daily/mid-term/long-term/all) | `tinyclaw feature memory read --layer long-term`       |
+| `feature memory write "<text>"`                  | Save a fact to long-term memory                    | `tinyclaw feature memory write "We use Prisma"`        |
+| `feature memory status`                          | Show memory file sizes and dates                   | `tinyclaw feature memory status`                       |
+| `feature memory ingest`                          | Ingest session transcripts (runs hourly via cron)  | `tinyclaw feature memory ingest`                       |
+| `feature memory promote daily`                   | Promote daily logs to mid-term summary             | `tinyclaw feature memory promote daily`                |
+| `feature memory promote weekly`                  | Promote mid-term to long-term memory               | `tinyclaw feature memory promote weekly`               |
 
 ### Messaging Commands
 
 | Command          | Description                 | Example                          |
 | ---------------- | --------------------------- | -------------------------------- |
 | `send <message>` | Send message to AI manually | `tinyclaw send "Hello!"`         |
-| `send <message>` | Route to specific agent     | `tinyclaw send "@coder fix bug"` |
+| `send <message>` | Route to specific agent     | `tinyclaw send "!coder fix bug"` |
 
 ### In-Chat Commands
 
-These commands work in Discord, Telegram, and WhatsApp:
+These commands work in Discord:
 
 | Command             | Description                                  | Example                              |
 | ------------------- | -------------------------------------------- | ------------------------------------ |
-| `@agent_id message` | Route message to specific agent              | `@coder fix the bug`                 |
+| `!agent_id message` | Route message to specific agent              | `!coder fix the bug`                 |
 | `/agent`            | List all available agents                    | `/agent`                             |
-| `@agent_id /reset`  | Reset specific agent conversation            | `@coder /reset`                      |
-| `/reset`            | Reset conversation (WhatsApp/global)         | `/reset` or `!reset`                 |
+| `!agent_id /reset`  | Reset specific agent conversation            | `!coder /reset`                      |
+| `/reset`            | Reset all conversations                      | `/reset`                             |
 | `message`           | Send to default agent (no prefix)            | `help me with this`                  |
 
-**Note:** The `@agent_id` routing prefix requires a space after it (e.g., `@coder fix` not `@coderfix`).
+**Note:** The `!agent_id` routing prefix requires a space after it (e.g., `!coder fix` not `!coderfix`).
 
 ## 🤖 Using Agents
 
 ### Routing Messages
 
-Use `@agent_id` prefix to route messages to specific agents (see [In-Chat Commands](#in-chat-commands) table above):
+Use `!agent_id` prefix to route messages to specific agents (see [In-Chat Commands](#in-chat-commands) table above):
 
 ```
-@coder fix the authentication bug
-@writer document the API endpoints
-@researcher find papers on transformers
+!coder fix the authentication bug
+!writer document the API endpoints
+!researcher find papers on transformers
 help me with this  ← goes to default agent (no prefix needed)
 ```
 
@@ -222,7 +171,7 @@ Agents are configured in `~/workspace/everything/tinyclaw/config/settings.json`:
 ```json
 {
   "workspace": {
-    "path": "/Users/me/tinyclaw-workspace",
+    "path": "~/workspace/everything/tinyclaw/workspace",
     "name": "tinyclaw-workspace"
   },
   "agents": {
@@ -230,14 +179,14 @@ Agents are configured in `~/workspace/everything/tinyclaw/config/settings.json`:
       "name": "Code Assistant",
       "provider": "anthropic",
       "model": "sonnet",
-      "working_directory": "/Users/me/tinyclaw-workspace/coder"
+      "working_directory": "~/workspace/everything/tinyclaw/workspace/coder"
     },
     "writer": {
       "name": "Technical Writer",
       "provider": "openai",
       "model": "gpt-5.3-codex",
       "memory": 0.5,
-      "working_directory": "/Users/me/tinyclaw-workspace/writer"
+      "working_directory": "~/workspace/everything/tinyclaw/workspace/writer"
     }
   }
 }
@@ -245,9 +194,9 @@ Agents are configured in `~/workspace/everything/tinyclaw/config/settings.json`:
 
 Each agent operates in isolation:
 
-- **Separate workspace directory** - `~/tinyclaw-workspace/{agent_id}/`
+- **Separate workspace directory** - `~/workspace/everything/tinyclaw/workspace/{agent_id}/`
 - **Own conversation history** - Maintained by CLI
-- **Custom configuration** - `.claude/`, `heartbeat.md` (root), `AGENTS.md`
+- **Custom configuration** - `.claude/`, `heartbeat.md` (root), `CLAUDE.md`
 - **Independent resets** - Reset individual agent conversations
 
 <details>
@@ -328,14 +277,14 @@ memory/
 
 ### Setup
 
-Memory cron is installed automatically with `npm run features:install` or `npm run restart`.
+Memory cron is installed automatically with `npm run features:install`.
 
 ## 📐 Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                     Message Channels                         │
-│         (Discord, Telegram, WhatsApp, Heartbeat)            │
+│                  (Discord, Heartbeat)                        │
 └────────────────────┬────────────────────────────────────────┘
                      │ Write message.json
                      ↓
@@ -405,7 +354,7 @@ tinyclaw/
 │   ├── .claude/          # Template for agents
 │   ├── heartbeat.md      # Template for agents
 │   └── CLAUDE.md         # Template for agents
-├── ~/tinyclaw-workspace/ # Agent workspaces
+├── ~/workspace/everything/tinyclaw/workspace/ # Agent workspaces
 │   ├── coder/
 │   │   ├── .claude/
 │   │   ├── heartbeat.md
@@ -431,14 +380,12 @@ Located at `~/workspace/everything/tinyclaw/config/settings.json`:
 ```json
 {
   "channels": {
-    "enabled": ["discord", "telegram", "whatsapp"],
-    "discord": { "bot_token": "..." },
-    "telegram": { "bot_token": "..." },
-    "whatsapp": {}
+    "enabled": ["discord"],
+    "discord": {}
   },
   "admin_user_id": "123456789012345678",
   "workspace": {
-    "path": "/Users/me/tinyclaw-workspace",
+    "path": "~/workspace/everything/tinyclaw/workspace",
     "name": "tinyclaw-workspace"
   },
   "agents": {
@@ -446,7 +393,7 @@ Located at `~/workspace/everything/tinyclaw/config/settings.json`:
       "name": "Assistant",
       "provider": "anthropic",
       "model": "sonnet",
-      "working_directory": "/Users/me/tinyclaw-workspace/assistant"
+      "working_directory": "~/workspace/everything/tinyclaw/workspace/assistant"
     }
   },
   "permissions": {
@@ -468,7 +415,7 @@ Edit agent-specific heartbeat prompts:
 
 ```bash
 # Edit heartbeat for specific agent
-nano ~/tinyclaw-workspace/coder/heartbeat.md
+nano ~/workspace/everything/tinyclaw/workspace/coder/heartbeat.md
 ```
 
 Default heartbeat prompt:
@@ -497,19 +444,15 @@ Claude: "Don't forget to call mom!"
 ### Multi-Agent Workflow
 
 ```
-@coder Review and fix bugs in auth.ts
-@writer Document the changes
-@reviewer Check the documentation quality
+!coder Review and fix bugs in auth.ts
+!writer Document the changes
+!reviewer Check the documentation quality
 ```
 
-### Cross-Device Access
+### Access
 
-- WhatsApp on phone
-- Discord on desktop
-- Telegram anywhere
+- Discord on desktop or mobile
 - CLI for automation
-
-All channels share agent conversations!
 
 ## 📚 Documentation
 
@@ -527,9 +470,6 @@ See [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) for detailed solutions.
 # Reset everything (preserves settings)
 tinyclaw stop && rm -rf ~/workspace/everything/tinyclaw/config/queue/* && tinyclaw start
 
-# Reset WhatsApp
-tinyclaw channels reset whatsapp
-
 # Check status
 tinyclaw status
 
@@ -540,7 +480,6 @@ tinyclaw logs all
 **Common issues:**
 
 - Bash version error → Install bash 4.0+: `brew install bash`
-- WhatsApp not connecting → Reset auth: `tinyclaw channels reset whatsapp`
 - Messages stuck → Clear queue: `rm -rf ~/workspace/everything/tinyclaw/config/queue/processing/*`
 - Agent not found → Check: `tinyclaw agent list`
 
@@ -553,7 +492,7 @@ tinyclaw logs all
 
 - Inspired by [OpenClaw](https://openclaw.ai/) by Peter Steinberger
 - Built on [Claude Code](https://claude.com/claude-code) and [Codex CLI](https://docs.openai.com/codex)
-- Uses [discord.js](https://discord.js.org/), [whatsapp-web.js](https://github.com/pedroslopez/whatsapp-web.js), [node-telegram-bot-api](https://github.com/yagop/node-telegram-bot-api)
+- Uses [discord.js](https://discord.js.org/)
 
 ## 📄 License
 

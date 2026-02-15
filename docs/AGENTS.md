@@ -7,9 +7,9 @@ TinyClaw supports running multiple AI agents simultaneously, each with its own i
 The agent management feature enables you to:
 
 - **Run multiple agents** with different models, providers, and configurations
-- **Route messages** to specific agents using `@agent_id` syntax
+- **Route messages** to specific agents using `!agent_id` syntax
 - **Isolate conversations** - each agent has its own workspace directory and conversation history
-- **Specialize agents** - give each agent a custom system prompt and configuration
+- **Specialize agents** - give each agent custom instructions via its CLAUDE.md
 - **Switch providers** - mix Anthropic (Claude) and OpenAI (Codex) agents
 - **Customize workspaces** - organize agents in your own workspace directory
 
@@ -18,14 +18,14 @@ The agent management feature enables you to:
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                    Message Channels                          │
-│              (Discord, Telegram, WhatsApp)                   │
+│                  (Discord, Heartbeat)                        │
 └────────────────────┬────────────────────────────────────────┘
                      │
-                     │ User sends: "@coder fix the bug"
+                     │ User sends: "!coder fix the bug"
                      ↓
 ┌─────────────────────────────────────────────────────────────┐
 │                   Queue Processor                            │
-│  • Parses @agent_id routing prefix                          │
+│  • Parses !agent_id routing prefix                          │
 │  • Falls back to default agent if no prefix                 │
 │  • Loads agent configuration from settings.json             │
 └────────────────────┬────────────────────────────────────────┘
@@ -35,7 +35,7 @@ The agent management feature enables you to:
 │                    Agent Router                              │
 │                                                              │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
-│  │ @coder       │  │ @writer      │  │ @assistant   │     │
+│  │ !coder       │  │ !writer      │  │ !assistant   │     │
 │  │              │  │              │  │ (default)    │     │
 │  │ Provider:    │  │ Provider:    │  │ Provider:    │     │
 │  │ anthropic    │  │ openai       │  │ anthropic    │     │
@@ -43,13 +43,13 @@ The agent management feature enables you to:
 │  │ sonnet       │  │ gpt-5.3-codex│  │ opus         │     │
 │  │              │  │              │  │              │     │
 │  │ Workspace:   │  │ Workspace:   │  │ Workspace:   │     │
-│  │ ~/workspace/ │  │ ~/workspace/ │  │ ~/workspace/ │     │
-│  │    coder/    │  │    writer/   │  │  assistant/  │     │
+│  │ .../workspace│  │ .../workspace│  │ .../workspace│     │
+│  │    /coder/   │  │    /writer/  │  │  /assistant/ │     │
 │  │              │  │              │  │              │     │
 │  │ Config:      │  │ Config:      │  │ Config:      │     │
 │  │ .claude/     │  │ .claude/     │  │ .claude/     │     │
 │  │ heartbeat.md │  │ heartbeat.md │  │ heartbeat.md │     │
-│  │ AGENTS.md    │  │ AGENTS.md    │  │ AGENTS.md    │     │
+│  │ CLAUDE.md    │  │ CLAUDE.md    │  │ CLAUDE.md    │     │
 │  └──────────────┘  └──────────────┘  └──────────────┘     │
 │                                                              │
 │  Shared: ~/workspace/everything/tinyclaw/config/ (channels, files, logs, queue)       │
@@ -63,13 +63,13 @@ The agent management feature enables you to:
 When a message arrives, the queue processor parses it for routing:
 
 ```typescript
-// User sends: "@coder fix the authentication bug"
+// User sends: "!coder fix the authentication bug"
 const routing = parseAgentRouting(rawMessage, agents);
 // Result: { agentId: "coder", message: "fix the authentication bug" }
 ```
 
 **Routing Rules:**
-- Message starts with `@agent_id` → Routes to that agent
+- Message starts with `!agent_id` → Routes to that agent
 - No prefix → Routes to default agent (user-named during setup)
 - Agent not found → Falls back to default agent
 - No agents configured → Uses legacy single-agent mode
@@ -81,7 +81,7 @@ Each agent has its own configuration in `~/workspace/everything/tinyclaw/config/
 ```json
 {
   "workspace": {
-    "path": "/Users/me/tinyclaw-workspace",
+    "path": "~/workspace/everything/tinyclaw/workspace",
     "name": "tinyclaw-workspace"
   },
   "agents": {
@@ -89,21 +89,19 @@ Each agent has its own configuration in `~/workspace/everything/tinyclaw/config/
       "name": "Code Assistant",
       "provider": "anthropic",
       "model": "sonnet",
-      "working_directory": "/Users/me/tinyclaw-workspace/coder",
-      "system_prompt": "You are a senior software engineer..."
+      "working_directory": "~/workspace/everything/tinyclaw/workspace/coder"
     },
     "writer": {
       "name": "Technical Writer",
       "provider": "openai",
       "model": "gpt-5.3-codex",
-      "working_directory": "/Users/me/tinyclaw-workspace/writer",
-      "prompt_file": "/path/to/writer-prompt.md"
+      "working_directory": "~/workspace/everything/tinyclaw/workspace/writer"
     },
     "assistant": {
       "name": "Assistant",
       "provider": "anthropic",
       "model": "opus",
-      "working_directory": "/Users/me/tinyclaw-workspace/assistant"
+      "working_directory": "~/workspace/everything/tinyclaw/workspace/assistant"
     }
   }
 }
@@ -117,55 +115,61 @@ Each agent has its own isolated workspace directory with complete copies of conf
 
 **Agent Workspaces:**
 ```
-~/tinyclaw-workspace/          # Or custom workspace name
+~/workspace/everything/tinyclaw/workspace/
 ├── coder/
 │   ├── .claude/               # Agent's own Claude config
-│   │   ├── settings.json      # Includes PreToolUse approval hook
-│   │   ├── settings.local.json
-│   │   └── hooks/
-│   │       ├── session-start.sh
-│   │       └── log-activity.sh
+│   │   ├── settings.json
+│   │   └── settings.local.json  # Includes PreToolUse approval hook
 │   ├── heartbeat.md           # Agent-specific heartbeat
-│   ├── AGENTS.md              # Agent-specific docs
+│   ├── CLAUDE.md              # Agent-specific instructions
 │   └── reset_flag             # Reset signal
 ├── writer/
 │   ├── .claude/
 │   ├── heartbeat.md
-│   ├── AGENTS.md
+│   ├── CLAUDE.md
 │   └── reset_flag
 └── assistant/                 # User-named default agent
     ├── .claude/
     ├── heartbeat.md
-    ├── AGENTS.md
+    ├── CLAUDE.md
     └── reset_flag
 ```
 
 **Templates & Shared Resources:**
 
-Templates and shared resources are stored in `~/workspace/everything/tinyclaw/config/`:
+Agent templates live in the TinyClaw source repo and are copied to each new agent directory:
+
+```
+tinyclaw/                      # Source repo
+├── .claude/                   # Template: Copied to each new agent
+└── templates/
+    ├── CLAUDE.md              # Template: Copied to each new agent
+    ├── heartbeat.md           # Template: Copied to each new agent
+    └── agent.gitignore        # Template: Copied as .gitignore
+```
+
+Shared runtime data lives in `~/workspace/everything/tinyclaw/config/`:
 
 ```
 ~/workspace/everything/tinyclaw/config/
-├── .claude/           # Template: Copied to each new agent
-├── heartbeat.md       # Template: Copied to each new agent
-├── AGENTS.md          # Template: Copied to each new agent
+├── settings.json      # Main configuration
+├── credentials.json   # Bot tokens and secrets
 ├── approvals/         # SHARED: Tool approval IPC files
 │   ├── pending/       # Hook writes pending requests here
 │   └── decisions/     # Discord writes admin decisions here
-├── channels/          # SHARED: Channel state (QR codes, ready flags)
+├── channels/          # SHARED: Channel state
 ├── files/             # SHARED: Uploaded files from all channels
 ├── logs/              # SHARED: Log files for all agents and channels
 └── queue/             # SHARED: Message queue (incoming/outgoing/processing)
 ```
 
 **How it works:**
-- Each agent runs CLI commands in its own workspace directory (`~/workspace/agent_id/`)
-- Each agent gets its own copy of `.claude/`, `heartbeat.md`, and `AGENTS.md` from templates
-- Agents can customize their settings, hooks, and documentation independently
-- Conversation history is isolated per agent (managed by Claude/Codex CLI)
+- Each agent runs CLI commands in its own workspace directory
+- Each agent gets its own copy of `.claude/`, `heartbeat.md`, and `CLAUDE.md` from templates
+- Agents can customize their settings, hooks, and CLAUDE.md independently
+- Conversation history is isolated per agent (managed by Claude/Codex CLI via sessions)
 - Reset flags allow resetting individual agent conversations
 - File operations happen in the agent's directory
-- Templates stored in `~/workspace/everything/tinyclaw/config/` are copied when creating new agents
 - Uploaded files, message queues, and logs are shared (common dependencies)
 
 ### 4. Provider Execution
@@ -174,17 +178,20 @@ The queue processor calls the appropriate CLI based on provider:
 
 **Anthropic (Claude):**
 ```bash
-cd "$agent_working_directory"  # e.g., ~/tinyclaw-workspace/coder/
-claude --dangerously-skip-permissions \
+cd "$agent_working_directory"
+claude --permission-mode default \
   --model claude-sonnet-4-5 \
-  --system-prompt "Your custom prompt..." \
-  -c \  # Continue conversation
+  --verbose --output-format stream-json \
+  --append-system-prompt-file /tmp/tinyclaw-memory-*.md \
+  --resume $SESSION_ID \           # or --session-id for new sessions
   -p "User message here"
 ```
 
+Session management: TinyClaw tracks sessions per thread/DM using `--session-id` (new) and `--resume` (continue). Falls back to `-c` when no session key is available.
+
 **OpenAI (Codex):**
 ```bash
-cd "$agent_working_directory"  # e.g., ~/tinyclaw-workspace/coder/
+cd "$agent_working_directory"
 codex exec resume --last \
   --model gpt-5.3-codex \
   --skip-git-repo-check \
@@ -192,6 +199,8 @@ codex exec resume --last \
   --json \
   "User message here"
 ```
+
+Note: `resume --last` is only used when continuing a conversation (not after a reset).
 
 ### 5. Interactive Tool Approvals
 
@@ -242,7 +251,7 @@ Claude CLI → PreToolUse hook → checks allowedTools
 
 **Agent workspace structure:**
 
-Each agent's `.claude/settings.json` is automatically configured with the approval hook:
+Each agent's `.claude/settings.local.json` is automatically configured with the approval hook:
 ```json
 {
   "hooks": {
@@ -271,7 +280,7 @@ The hook script:
 
 **Environment variables** passed to the hook:
 - `TINYCLAW_AGENT_ID` — the agent ID (e.g., `coder`)
-- `TINYCLAW_HOME` — path to `~/workspace/everything/tinyclaw/config`
+- `TINYCLAW_CONFIG_HOME` — path to `~/workspace/everything/tinyclaw/config`
 
 **Getting your Discord user ID:**
 1. Open Discord Settings → Advanced → Enable "Developer Mode"
@@ -284,8 +293,7 @@ The hook script:
 During first-time setup (`./tinyclaw.sh setup`), you'll be prompted for:
 
 1. **Workspace name** - Where to store agent directories
-   - Default: `tinyclaw-workspace`
-   - Creates: `~/tinyclaw-workspace/`
+   - Default: `~/workspace/everything/tinyclaw/workspace`
 
 2. **Default agent name** - Name for your main assistant
    - Default: `assistant`
@@ -303,7 +311,6 @@ This walks you through:
 2. Display name (e.g., `Code Assistant`)
 3. Provider (Anthropic or OpenAI)
 4. Model selection
-5. Optional system prompt
 
 **Working directory is automatically set to:** `<workspace>/<agent_id>/`
 
@@ -314,7 +321,7 @@ Edit `~/workspace/everything/tinyclaw/config/settings.json`:
 ```json
 {
   "workspace": {
-    "path": "/Users/me/tinyclaw-workspace",
+    "path": "~/workspace/everything/tinyclaw/workspace",
     "name": "tinyclaw-workspace"
   },
   "agents": {
@@ -322,8 +329,7 @@ Edit `~/workspace/everything/tinyclaw/config/settings.json`:
       "name": "Research Assistant",
       "provider": "anthropic",
       "model": "opus",
-      "working_directory": "/Users/me/tinyclaw-workspace/researcher",
-      "system_prompt": "You are a research assistant specialized in academic literature review and data analysis."
+      "working_directory": "~/workspace/everything/tinyclaw/workspace/researcher"
     }
   }
 }
@@ -337,26 +343,26 @@ Edit `~/workspace/everything/tinyclaw/config/settings.json`:
 | `provider` | Yes | `anthropic` or `openai` |
 | `model` | Yes | Model identifier (e.g., `sonnet`, `opus`, `gpt-5.3-codex`) |
 | `working_directory` | Yes | Directory where agent operates (auto-set to `<workspace>/<agent_id>/`) |
-| `system_prompt` | No | Inline system prompt text |
-| `prompt_file` | No | Path to file containing system prompt |
+| `permissions` | No | Per-agent `allowedTools` / `deniedTools` overrides |
+| `memory` | No | 0-1 (default 1). Memory importance threshold. 0 = skip agent in memory processing |
 
 **Note:**
-- If both `prompt_file` and `system_prompt` are provided, `prompt_file` takes precedence
 - The `working_directory` is automatically set to `<workspace>/<agent_id>/` when creating agents
-- Each agent gets its own isolated directory with copies of templates from `~/workspace/everything/tinyclaw/config/`
+- Each agent gets its own isolated directory with copies of templates from the source repo
+- Agent personality/instructions are configured via the `CLAUDE.md` file in each agent's workspace
 
 ## Usage
 
 ### Routing Messages to Agents
 
-**In any messaging channel** (Discord, Telegram, WhatsApp):
+**In Discord:**
 
 ```
-@coder fix the authentication bug in login.ts
+!coder fix the authentication bug in login.ts
 
-@writer document the new API endpoints
+!writer document the new API endpoints
 
-@researcher find papers on transformer architectures
+!researcher find papers on transformer architectures
 
 help me with this (goes to default agent - "assistant" by default)
 ```
@@ -378,18 +384,17 @@ help me with this (goes to default agent - "assistant" by default)
 Configured Agents
 ==================
 
-  @coder - Code Assistant
+  !coder - Code Assistant
     Provider:  anthropic/sonnet
-    Directory: /Users/me/tinyclaw-workspace/coder
+    Directory: ~/workspace/everything/tinyclaw/workspace/coder
 
-  @writer - Technical Writer
+  !writer - Technical Writer
     Provider:  openai/gpt-5.3-codex
-    Directory: /Users/me/tinyclaw-workspace/writer
-    Prompt:    /path/to/writer-prompt.md
+    Directory: ~/workspace/everything/tinyclaw/workspace/writer
 
-  @assistant - Assistant
+  !assistant - Assistant
     Provider:  anthropic/opus
-    Directory: /Users/me/tinyclaw-workspace/assistant
+    Directory: ~/workspace/everything/tinyclaw/workspace/assistant
 ```
 
 ### Managing Agents
@@ -406,7 +411,7 @@ Configured Agents
 
 From chat:
 ```
-@coder /reset
+!coder /reset
 ```
 
 **Remove agent:**
@@ -440,9 +445,9 @@ Have different agents for different projects:
 
 Usage:
 ```
-@frontend add a loading spinner to the dashboard
+!frontend add a loading spinner to the dashboard
 
-@backend optimize the database queries in user service
+!backend optimize the database queries in user service
 ```
 
 ### Role-Based Agents
@@ -562,8 +567,8 @@ Or even use cloud-synced directories:
 Files uploaded through messaging channels are automatically available to all agents:
 
 ```
-User uploads image.png via Telegram
-→ Saved to ~/workspace/everything/tinyclaw/config/files/telegram_123456_image.png
+User uploads image.png via Discord
+→ Saved to ~/workspace/everything/tinyclaw/config/files/discord_123456_image.png
 → Message includes: [file: /path/to/image.png]
 → Routed to agent
 → Agent can read/process the file
@@ -584,7 +589,7 @@ For detailed troubleshooting of agent-related issues, see [TROUBLESHOOTING.md](T
 **Quick reference:**
 
 - **Agent not found** → Check: `tinyclaw agent list`
-- **Wrong agent responding** → Verify routing: `@agent_id message` (with space)
+- **Wrong agent responding** → Verify routing: `!agent_id message` (with space)
 - **Conversation not resetting** → Send message after: `tinyclaw agent reset <id>`
 - **CLI not found** → Install Claude Code or Codex CLI
 - **Workspace issues** → Check: `cat ~/workspace/everything/tinyclaw/config/settings.json | jq '.workspace'`
@@ -597,7 +602,7 @@ For detailed troubleshooting of agent-related issues, see [TROUBLESHOOTING.md](T
 **Queue Processor** (`src/queue-processor.ts`):
 - `getSettings()` - Loads settings from JSON
 - `getAgents()` - Returns agent configurations (checks `.agents`)
-- `parseAgentRouting()` - Parses @agent_id prefix
+- `parseAgentRouting()` - Parses `!agent_id` prefix
 - `processMessage()` - Main routing and execution logic
 
 **Message Interfaces:**
@@ -617,12 +622,14 @@ interface ResponseData {
 
 ### Agent Directory Structure
 
-**Templates:**
+**Templates** (from source repo):
 ```
-~/workspace/everything/tinyclaw/config/
-├── .claude/           # Copied to new agents
-├── heartbeat.md       # Copied to new agents
-└── AGENTS.md          # Copied to new agents
+tinyclaw/
+├── .claude/              # Copied to new agents
+└── templates/
+    ├── CLAUDE.md         # Copied to new agents
+    ├── heartbeat.md      # Copied to new agents
+    └── agent.gitignore   # Copied as .gitignore
 ```
 
 **Agent State:**
@@ -631,11 +638,11 @@ interface ResponseData {
 └── {agent_id}/
     ├── .claude/       # Agent's own config
     ├── heartbeat.md   # Agent's own monitoring
-    ├── AGENTS.md      # Agent's own docs
+    ├── CLAUDE.md      # Agent's own instructions
     └── reset_flag     # Touch to reset conversation
 ```
 
-State is managed by the CLI itself (claude or codex) through the `-c` flag and working directory isolation.
+State is managed by the CLI itself (claude or codex) through session IDs and working directory isolation.
 
 ## Future Enhancements
 

@@ -145,7 +145,7 @@ echo -e "${GREEN}  Additional Agents (Optional)${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 echo "You can set up multiple agents with different roles, models, and working directories."
-echo "Users route messages with '@agent_id message' in chat."
+echo "Users route messages with '!agent_id message' in chat."
 echo ""
 read -rp "Set up additional agents? [y/N]: " SETUP_AGENTS
 

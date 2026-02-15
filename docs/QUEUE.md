@@ -5,7 +5,7 @@ TinyClaw uses a file-based queue system to coordinate message processing across 
 ## Overview
 
 The queue system acts as a central coordinator between:
-- **Channel clients** (Discord, Telegram, WhatsApp) - produce messages
+- **Channel clients** (Discord) - produce messages
 - **Queue processor** - routes and processes messages
 - **AI providers** (Claude, Codex) - generate responses
 - **Agents** - isolated AI agents with different configs
@@ -13,7 +13,7 @@ The queue system acts as a central coordinator between:
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                     Message Channels                         │
-│         (Discord, Telegram, WhatsApp, Heartbeat)            │
+│                  (Discord, Heartbeat)                        │
 └────────────────────┬────────────────────────────────────────┘
                      │ Write message.json
                      ↓
@@ -58,8 +58,7 @@ The queue system acts as a central coordinator between:
 │       └── msg_123456.json
 ├── logs/
 │   ├── queue.log         # Queue processor logs
-│   ├── discord.log       # Channel-specific logs
-│   └── telegram.log
+│   └── discord.log       # Channel-specific logs
 └── files/                # Uploaded files from channels
     └── image_123.png
 ```
@@ -75,7 +74,7 @@ A channel client receives a message and writes it to `incoming/`:
   "channel": "discord",
   "sender": "Alice",
   "senderId": "user_12345",
-  "message": "@coder fix the authentication bug",
+  "message": "fix the authentication bug",
   "timestamp": 1707739200000,
   "messageId": "discord_msg_123",
   "files": ["/path/to/screenshot.png"]
@@ -83,7 +82,7 @@ A channel client receives a message and writes it to `incoming/`:
 ```
 
 **Optional fields:**
-- `agent` - Pre-route to specific agent (bypasses @agent_id parsing)
+- `agent` - Pre-route to specific agent (bypasses !agent_id parsing)
 - `files` - Array of file paths uploaded with message
 
 ### 2. Processing
@@ -93,8 +92,8 @@ The queue processor (runs every 1 second):
 1. **Scans `incoming/`** for new messages
 2. **Sorts by timestamp** (oldest first)
 3. **Determines target agent**:
-   - Checks `agent` field (if pre-routed)
-   - Parses `@agent_id` prefix from message
+   - Checks `agent` field (if pre-routed by channel client)
+   - Parses `!agent_id` prefix from message text
    - Falls back to `default` agent
 4. **Moves to `processing/`** (atomic operation)
 5. **Routes to agent's promise chain** (parallel processing)
@@ -108,37 +107,42 @@ Each agent has its own promise chain:
 agentChain: msg1 → msg2 → msg3
 
 // Different agents = parallel (don't block each other)
-@coder:     msg1 ──┐
-@writer:    msg1 ──┼─→ All run concurrently
-@assistant: msg1 ──┘
+!coder:     msg1 ──┐
+!writer:    msg1 ──┼─→ All run concurrently
+!assistant: msg1 ──┘
 ```
 
 **Per-agent isolation:**
 - Each agent runs in its own `working_directory`
 - Separate conversation history (managed by CLI)
 - Independent reset flags
-- Own configuration files (.claude/, AGENTS.md)
+- Own configuration files (.claude/, CLAUDE.md)
 
 ### 4. AI Provider Execution
 
 **Claude (Anthropic):**
 ```bash
-cd ~/workspace/coder/
-claude --dangerously-skip-permissions \
+cd ~/workspace/everything/tinyclaw/workspace/coder/
+claude --permission-mode default \
   --model claude-sonnet-4-5 \
-  -c \  # Continue conversation
+  --verbose --output-format stream-json \
+  --resume $SESSION_ID \
   -p "fix the authentication bug"
 ```
 
+Session management uses `--session-id` (new sessions) and `--resume` (continue existing). Falls back to `-c` when no session key is available.
+
 **Codex (OpenAI):**
 ```bash
-cd ~/workspace/coder/
+cd ~/workspace/everything/tinyclaw/workspace/coder/
 codex exec resume --last \
   --model gpt-5.3-codex \
   --skip-git-repo-check \
   --dangerously-bypass-approvals-and-sandbox \
   --json "fix the authentication bug"
 ```
+
+Note: `resume --last` is only used when continuing (not after a reset).
 
 ### 5. Response
 
@@ -149,7 +153,7 @@ After AI responds, queue processor writes to `outgoing/`:
   "channel": "discord",
   "sender": "Alice",
   "message": "I've identified the issue in auth.ts:42...",
-  "originalMessage": "@coder fix the authentication bug",
+  "originalMessage": "fix the authentication bug",
   "timestamp": 1707739205000,
   "messageId": "discord_msg_123",
   "agent": "coder",
@@ -174,7 +178,7 @@ Each agent has its own **promise chain** that processes messages sequentially:
 ```typescript
 const agentProcessingChains = new Map<string, Promise<void>>();
 
-// When message arrives for @coder:
+// When message arrives for !coder:
 const chain = agentProcessingChains.get('coder') || Promise.resolve();
 const newChain = chain.then(() => processMessage(msg));
 agentProcessingChains.set('coder', newChain);
@@ -186,17 +190,17 @@ agentProcessingChains.set('coder', newChain);
 
 Sequential (old):
 ```
-@coder fix bug 1     [████████████████] 30s
-@writer docs         [██████████] 20s
-@assistant help      [████████] 15s
+!coder fix bug 1     [████████████████] 30s
+!writer docs         [██████████] 20s
+!assistant help      [████████] 15s
 Total: 65 seconds
 ```
 
 Parallel (new):
 ```
-@coder fix bug 1     [████████████████] 30s
-@writer docs         [██████████] 20s ← concurrent!
-@assistant help      [████████] 15s   ← concurrent!
+!coder fix bug 1     [████████████████] 30s
+!writer docs         [██████████] 20s ← concurrent!
+!assistant help      [████████] 15s   ← concurrent!
 Total: 30 seconds (2.2x faster!)
 ```
 
@@ -205,9 +209,9 @@ Total: 30 seconds (2.2x faster!)
 Messages to the **same agent** remain sequential:
 
 ```
-@coder fix bug 1     [████] 10s
-@coder fix bug 2             [████] 10s  ← waits for bug 1
-@writer docs         [██████] 15s        ← parallel with both
+!coder fix bug 1     [████] 10s
+!coder fix bug 2             [████] 10s  ← waits for bug 1
+!writer docs         [██████] 15s        ← parallel with both
 ```
 
 This ensures:
@@ -220,10 +224,10 @@ This ensures:
 
 ### Explicit Routing
 
-Use `@agent_id` prefix:
+Use `!agent_id` prefix:
 
 ```
-User: @coder fix the login bug
+User: !coder fix the login bug
 → Routes to agent "coder"
 → Message becomes: "fix the login bug"
 ```
@@ -244,7 +248,7 @@ const queueData = {
 
 ```
 1. Check message.agent field (if pre-routed)
-2. Parse @agent_id from message text
+2. Parse !agent_id from message text
 3. Look up agent in settings.agents
 4. Fall back to 'default' agent
 5. If no default, use first available agent
@@ -253,44 +257,12 @@ const queueData = {
 ### Routing Examples
 
 ```
-"@coder fix bug"           → agent: coder
+"!coder fix bug"           → agent: coder
 "help me"                  → agent: default
-"@unknown test"            → agent: default (unknown agent)
-"@assistant help"          → agent: assistant
+"!unknown test"            → agent: default (unknown agent)
+"!assistant help"          → agent: assistant
 pre-routed with agent=X    → agent: X
 ```
-
-### Easter Egg: Multiple Agents 🥚
-
-If you mention multiple agents in one message:
-
-```
-User: "@coder @writer fix this bug and document it"
-
-Result:
-  → Returns friendly message about upcoming agent-to-agent collaboration
-  → No AI processing (saves tokens!)
-  → Suggests sending separate messages to each agent
-```
-
-**The easter egg message:**
-> 🚀 **Agent-to-Agent Collaboration - Coming Soon!**
->
-> You mentioned multiple agents: @coder, @writer
->
-> Right now, I can only route to one agent at a time. But we're working on something cool:
->
-> ✨ **Multi-Agent Coordination** - Agents will be able to collaborate on complex tasks!
-> ✨ **Smart Routing** - Send instructions to multiple agents at once!
-> ✨ **Agent Handoffs** - One agent can delegate to another!
->
-> For now, please send separate messages to each agent:
-> • `@coder [your message]`
-> • `@writer [your message]`
->
-> _Stay tuned for updates! 🎉_
-
-This prevents confusion and teases the upcoming feature!
 
 ## Reset System
 
@@ -306,12 +278,12 @@ Next message to **any agent** starts fresh (no `-c` flag).
 
 ### Per-Agent Reset
 
-Creates `~/workspace/{agent_id}/reset_flag`:
+Creates `<workspace>/<agent_id>/reset_flag`:
 
 ```bash
 ./tinyclaw.sh agent reset coder
 # Or in chat:
-@coder /reset
+!coder /reset
 ```
 
 Next message to **that agent** starts fresh.
@@ -338,7 +310,7 @@ Channels download files to `~/workspace/everything/tinyclaw/config/files/`:
 
 ```
 User uploads: image.png
-→ Saved as: ~/workspace/everything/tinyclaw/config/files/telegram_123_image.png
+→ Saved as: ~/workspace/everything/tinyclaw/config/files/discord_123_image.png
 → Message includes: [file: /absolute/path/to/image.png]
 ```
 
@@ -360,7 +332,7 @@ AI response: "Here's the diagram [send_file: /path/to/diagram.png]"
 
 If agent not found:
 ```
-User: @unknown help
+User: !unknown help
 → Routes to: default agent
 → Logs: WARNING - Agent 'unknown' not found, using 'default'
 ```
@@ -444,7 +416,7 @@ tail -f ~/workspace/everything/tinyclaw/config/logs/queue.log
 - Restart: `./tinyclaw.sh restart`
 
 **No responses generated:**
-- Check agent routing (wrong @agent_id?)
+- Check agent routing (wrong `!agent_id`?)
 - Check AI CLI is installed (claude/codex)
 - Check logs: `tail -f ~/workspace/everything/tinyclaw/config/logs/queue.log`
 

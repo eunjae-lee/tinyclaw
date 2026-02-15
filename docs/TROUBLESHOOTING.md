@@ -35,27 +35,6 @@ PUPPETEER_SKIP_DOWNLOAD=true npm install
 
 ## Channel Issues
 
-### WhatsApp not connecting
-
-```bash
-# Check logs
-tinyclaw logs whatsapp
-
-# Reset WhatsApp authentication
-tinyclaw channels reset whatsapp
-tinyclaw restart
-```
-
-**Common causes:**
-- QR code expired (scan within 60 seconds)
-- Session files corrupted
-- Multiple WhatsApp Web sessions active
-
-**Solution:**
-1. Delete session: `rm -rf ~/workspace/everything/tinyclaw/config/whatsapp-session/`
-2. Restart: `tinyclaw restart`
-3. Scan new QR code immediately
-
 ### Discord bot not responding
 
 ```bash
@@ -71,33 +50,6 @@ tinyclaw setup
 - ✅ "Message Content Intent" is enabled in Discord Developer Portal
 - ✅ Bot has permissions to read/send messages
 - ✅ Bot is added to your server
-
-### Telegram bot not responding
-
-```bash
-# Check logs
-tinyclaw logs telegram
-
-# Update Telegram bot token
-tinyclaw setup
-```
-
-**Common issues:**
-- Bot token is invalid or revoked
-- Bot wasn't started (send `/start` to your bot first)
-- Bot removed from group
-
-### QR code not showing
-
-```bash
-# Attach to tmux to see the QR code
-tmux attach -t tinyclaw
-```
-
-The QR code appears in the WhatsApp pane. If it's not visible:
-1. Check if WhatsApp is enabled: `cat ~/workspace/everything/tinyclaw/config/settings.json | jq '.channels.enabled'`
-2. Check WhatsApp process: `pgrep -f whatsapp-client.ts`
-3. View logs: `tail -f ~/workspace/everything/tinyclaw/config/logs/whatsapp.log`
 
 ## Queue Issues
 
@@ -139,8 +91,6 @@ ls -la ~/workspace/everything/tinyclaw/config/queue/outgoing/
 
 # Check channel client logs
 tinyclaw logs discord
-tinyclaw logs telegram
-tinyclaw logs whatsapp
 ```
 
 ## Agent Issues
@@ -168,10 +118,10 @@ If you see "Agent 'xyz' not found":
 
 If messages go to the wrong agent:
 
-1. **Check routing prefix:** Must be `@agent_id` with space after
-   - ✅ Correct: `@coder fix the bug`
-   - ❌ Wrong: `@coderfix the bug` (no space)
-   - ❌ Wrong: `@ coder fix the bug` (space before agent_id)
+1. **Check routing prefix:** Must be `!agent_id` with space after
+   - ✅ Correct: `!coder fix the bug`
+   - ❌ Wrong: `!coderfix the bug` (no space)
+   - ❌ Wrong: `! coder fix the bug` (space before agent_id)
 
 2. **Verify agent exists:**
    ```bash
@@ -185,11 +135,11 @@ If messages go to the wrong agent:
 
 ### Conversation not resetting
 
-If `@agent /reset` doesn't work:
+If `!agent /reset` doesn't work:
 
 1. Check reset flag exists:
    ```bash
-   ls ~/tinyclaw-workspace/{agent_id}/reset_flag
+   ls ~/workspace/everything/tinyclaw/workspace/{agent_id}/reset_flag
    ```
 
 2. Send a new message to trigger reset (flag is checked before each message)
@@ -231,26 +181,26 @@ If agents aren't being created:
 
 2. Verify workspace exists:
    ```bash
-   ls ~/tinyclaw-workspace/
+   ls ~/workspace/everything/tinyclaw/workspace/
    ```
 
 3. Check permissions:
    ```bash
-   ls -la ~/tinyclaw-workspace/
+   ls -la ~/workspace/everything/tinyclaw/workspace/
    ```
 
 4. Manually create if needed:
    ```bash
-   mkdir -p ~/tinyclaw-workspace
+   mkdir -p ~/workspace/everything/tinyclaw/workspace
    ```
 
 ### Templates not copying
 
-If new agents don't have `.claude/`, `heartbeat.md`, or `AGENTS.md`:
+If new agents don't have `.claude/`, `heartbeat.md`, or `CLAUDE.md`:
 
 1. Check templates exist:
    ```bash
-   ls -la ~/workspace/everything/tinyclaw/config/{.claude,heartbeat.md,AGENTS.md}
+   ls -la ~/workspace/everything/tinyclaw/config/{.claude,heartbeat.md,CLAUDE.md}
    ```
 
 2. Run setup to create templates:
@@ -262,7 +212,7 @@ If new agents don't have `.claude/`, `heartbeat.md`, or `AGENTS.md`:
    ```bash
    cp -r .claude ~/workspace/everything/tinyclaw/config/
    cp heartbeat.md ~/workspace/everything/tinyclaw/config/
-   cp AGENTS.md ~/workspace/everything/tinyclaw/config/
+   cp CLAUDE.md ~/workspace/everything/tinyclaw/config/
    ```
 
 ## Tool Approval Issues
@@ -347,7 +297,7 @@ If tools are being approved without prompting:
 
 1. **Check hook is configured in agent's settings:**
    ```bash
-   cat ~/tinyclaw-workspace/coder/.claude/settings.json | jq '.hooks'
+   cat ~/workspace/everything/tinyclaw/workspace/coder/.claude/settings.local.json | jq '.hooks'
    ```
 
 2. **Verify hook script exists and is executable:**
@@ -461,7 +411,6 @@ ps aux | grep -E 'claude|codex|node' | awk '{print $4, $11}'
 **Solutions:**
 - Restart TinyClaw: `tinyclaw restart`
 - Reset conversations: `tinyclaw reset`
-- Clear old sessions: `rm -rf ~/workspace/everything/tinyclaw/config/whatsapp-session/.wwebjs_*`
 
 ### Slow message responses
 
@@ -547,7 +496,6 @@ Quick reference for common recovery scenarios:
 tinyclaw stop
 rm -rf ~/workspace/everything/tinyclaw/config/queue/*
 rm -rf ~/workspace/everything/tinyclaw/config/channels/*
-rm -rf ~/workspace/everything/tinyclaw/config/whatsapp-session/*
 tinyclaw start
 
 # Complete reinstall

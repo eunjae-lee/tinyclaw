@@ -36,7 +36,7 @@ agent_list() {
         echo ""
     done
 
-    echo "Usage: Send '@agent_id <message>' in any channel to route to a specific agent."
+    echo "Usage: Send '!agent_id <message>' in any channel to route to a specific agent."
 }
 
 # Show details for a specific agent
@@ -211,8 +211,8 @@ agent_add() {
     echo ""
     echo -e "${BLUE}Next steps:${NC}"
     echo "  1. Customize agent behavior by editing:"
-    echo -e "     ${GREEN}$AGENTS_DIR/$AGENT_ID/AGENTS.md${NC}"
-    echo "  2. Send a message: '@${AGENT_ID} <message>' in any channel"
+    echo -e "     ${GREEN}$AGENTS_DIR/$AGENT_ID/CLAUDE.md${NC}"
+    echo "  2. Send a message: '!${AGENT_ID} <message>' in any channel"
     echo ""
     echo "Note: Changes take effect on next message. Restart is not required."
 }

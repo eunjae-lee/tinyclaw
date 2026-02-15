@@ -275,7 +275,7 @@ case "${1:-}" in
                 echo "  $0 agent remove coder"
                 echo "  $0 agent reset coder"
                 echo ""
-                echo "In chat, use '@agent_id message' to route to a specific agent."
+                echo "In chat, use '!agent_id message' to route to a specific agent."
                 exit 1
                 ;;
         esac
@@ -338,9 +338,9 @@ case "${1:-}" in
         echo "  $0 model opus"
         echo "  $0 agent list"
         echo "  $0 agent add"
-        echo "  $0 send '@coder fix the bug'"
-        echo "  $0 channels reset whatsapp"
-        echo "  $0 logs telegram"
+        echo "  $0 send '!coder fix the bug'"
+        echo "  $0 channels reset discord"
+        echo "  $0 logs discord"
         echo ""
         exit 1
         ;;
