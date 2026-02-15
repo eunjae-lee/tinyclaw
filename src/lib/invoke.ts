@@ -297,7 +297,7 @@ export async function invokeAgent(
             claudeArgs.push('--model', modelId);
         }
         if (onChunk) {
-            claudeArgs.push('--output-format', 'stream-json');
+            claudeArgs.push('--verbose', '--output-format', 'stream-json');
         }
         // Memory injection
         try {
