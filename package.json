@@ -3,7 +3,7 @@
   "version": "0.0.2",
   "description": "TinyClaw is a tiny agent that acts as your 24/7 personal assistant",
   "scripts": {
-    "deploy": "cd ~/workspace/tinyclaw && git pull && npm run restart",
+    "deploy": "cd ~/workspace/tinyclaw && GIT_MERGE_AUTOEDIT=no git pull && npm run restart",
     "restart": "npm run build && npm run launchd:install && ~/.local/bin/tinyclaw restart",
     "build": "tsc",
     "discord": "node dist/channels/discord-client.js",
