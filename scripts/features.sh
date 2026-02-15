@@ -76,7 +76,7 @@ install() {
             local skill_path="$feature_dir/skills/$skill_name"
             if [ -d "$skill_path" ]; then
                 mkdir -p "$SKILLS_DIR"
-                ln -sf "$skill_path" "$SKILLS_DIR/$skill_name"
+                ln -sfn "$skill_path" "$SKILLS_DIR/$skill_name"
                 echo "  ✓ Skill linked: $skill_name"
             else
                 echo "  ⚠ Skill directory not found: $skill_name"
