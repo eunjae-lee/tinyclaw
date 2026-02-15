@@ -564,8 +564,8 @@ async function checkStreamingFiles(): Promise<void> {
                                 if (data.cancelable) {
                                     const cancelBtn = new ButtonBuilder()
                                         .setCustomId(`cancel_${messageId}`)
-                                        .setLabel('Cancel')
-                                        .setStyle(ButtonStyle.Danger);
+                                        .setLabel('Stop')
+                                        .setStyle(ButtonStyle.Secondary);
                                     editOptions.components = [new ActionRowBuilder<ButtonBuilder>().addComponents(cancelBtn)];
                                 }
                                 await existing.discordMessage.edit(editOptions);
@@ -615,8 +615,8 @@ async function checkStreamingFiles(): Promise<void> {
                         if (data.cancelable) {
                             const cancelBtn = new ButtonBuilder()
                                 .setCustomId(`cancel_${messageId}`)
-                                .setLabel('Cancel')
-                                .setStyle(ButtonStyle.Danger);
+                                .setLabel('Stop')
+                                .setStyle(ButtonStyle.Secondary);
                             sendOptions.components = [new ActionRowBuilder<ButtonBuilder>().addComponents(cancelBtn)];
                         }
 
@@ -1060,8 +1060,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
             // Disable the button
             const disabledBtn = new ButtonBuilder()
                 .setCustomId(`cancel_${cancelMessageId}`)
-                .setLabel('Cancelling...')
-                .setStyle(ButtonStyle.Danger)
+                .setLabel('Stopping...')
+                .setStyle(ButtonStyle.Secondary)
                 .setDisabled(true);
             const row = new ActionRowBuilder<ButtonBuilder>().addComponents(disabledBtn);
 
