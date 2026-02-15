@@ -114,9 +114,7 @@ export function preprocessJsonl(lines: string[]): string {
 }
 
 function getClaudeProjectDir(workingDirectory: string): string {
-    const encoded = workingDirectory
-        .replace(/^\//, '')
-        .replace(/\//g, '-');
+    const encoded = workingDirectory.replace(/[/_]/g, '-');
     return path.join(os.homedir(), '.claude', 'projects', encoded);
 }
 
