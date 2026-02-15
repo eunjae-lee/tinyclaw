@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { execSync } from 'child_process';
 import { AgentConfig } from './types';
 import { SCRIPT_DIR, APPROVALS_DIR, APPROVALS_PENDING, APPROVALS_DECISIONS } from './config';
 
@@ -32,6 +33,11 @@ export function ensureAgentDirectory(agentDir: string): void {
     }
 
     fs.mkdirSync(agentDir, { recursive: true });
+
+    // Initialize git repo so Claude Code resolves this as the project root
+    try {
+        execSync('git init', { cwd: agentDir, stdio: 'ignore' });
+    } catch { /* ignore — git may not be available */ }
 
     // Copy .claude directory
     const sourceClaudeDir = path.join(SCRIPT_DIR, '.claude');
