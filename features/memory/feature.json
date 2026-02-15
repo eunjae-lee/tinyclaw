@@ -1,0 +1,8 @@
+{
+  "plists": ["com.tinyclaw.memory.plist"],
+  "skills": [],
+  "command": {
+    "runner": "node",
+    "script": "dist/memory/index.js"
+  }
+}

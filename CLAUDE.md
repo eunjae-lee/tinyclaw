@@ -44,9 +44,36 @@ The system uses file-based IPC between the Discord client and queue processor:
 - **Cancel**: Discord writes `queue/cancel/{messageId}.json`; queue processor's idle timer picks it up and aborts the child process.
 - **Approvals**: Queue processor writes to `approvals/pending/`; Discord client polls, shows buttons, writes decisions to `approvals/decisions/`.
 
+## Features
+
+Features live in `features/<name>/` and declare their contributions via `feature.json`:
+
+```json
+{
+  "plists": ["com.tinyclaw.memory.plist"],
+  "skills": [],
+  "command": {
+    "runner": "node",
+    "script": "dist/memory/index.js"
+  }
+}
+```
+
+- `plists` — plist files in the feature directory to install to `~/Library/LaunchAgents/`
+- `skills` — skill directory names under `features/{name}/skills/` to symlink to `~/.claude/skills/`
+- `command` — CLI subcommand: `tinyclaw feature <name> [args]` runs `<runner> <TINYCLAW_HOME>/<script> [args]`
+
+All fields are optional. The `scripts/features.sh` installer reads these manifests to install/uninstall plists and skill symlinks.
+
+CLI examples:
+- `tinyclaw feature memory read` — runs `node dist/memory/index.js read`
+- `tinyclaw feature memory ingest` — runs `node dist/memory/index.js ingest`
+
 ## Development
 
 ```bash
-npm run build    # TypeScript compilation
-npm test         # Run vitest suite
+npm run build              # TypeScript compilation
+npm test                   # Run vitest suite
+npm run features:install   # Install all feature plists and skills
+npm run features:uninstall # Remove all feature plists and skills
 ```

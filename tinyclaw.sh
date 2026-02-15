@@ -280,9 +280,28 @@ case "${1:-}" in
                 ;;
         esac
         ;;
-    memory)
-        shift
-        node "$SCRIPT_DIR/dist/memory/index.js" "$@"
+    feature)
+        FEATURE_NAME="${2:-}"
+        if [ -z "$FEATURE_NAME" ]; then
+            echo "Usage: $0 feature <name> [args...]"
+            echo ""
+            echo "Run 'bash scripts/features.sh list' to see available features."
+            exit 1
+        fi
+        FEATURE_JSON="$SCRIPT_DIR/features/$FEATURE_NAME/feature.json"
+        if [ ! -f "$FEATURE_JSON" ]; then
+            echo -e "${RED}Error: Feature '$FEATURE_NAME' not found${NC}"
+            echo "Run 'bash scripts/features.sh list' to see available features."
+            exit 1
+        fi
+        RUNNER=$(jq -r '.command.runner // empty' "$FEATURE_JSON")
+        SCRIPT=$(jq -r '.command.script // empty' "$FEATURE_JSON")
+        if [ -z "$RUNNER" ] || [ -z "$SCRIPT" ]; then
+            echo -e "${RED}Error: Feature '$FEATURE_NAME' has no command defined${NC}"
+            exit 1
+        fi
+        shift 2
+        $RUNNER "$SCRIPT_DIR/$SCRIPT" "$@"
         ;;
     attach)
         tmux attach -t "$TMUX_SESSION"
@@ -294,7 +313,7 @@ case "${1:-}" in
         local_names=$(IFS='|'; echo "${ALL_CHANNELS[*]}")
         echo -e "${BLUE}TinyClaw - Claude Code + Messaging Channels${NC}"
         echo ""
-        echo "Usage: $0 {start|stop|restart|status|setup|send|logs|reset|channels|provider|model|agent|memory|attach}"
+        echo "Usage: $0 {start|stop|restart|status|setup|send|logs|reset|channels|provider|model|agent|feature|attach}"
         echo ""
         echo "Commands:"
         echo "  start                    Start TinyClaw"
@@ -309,7 +328,7 @@ case "${1:-}" in
         echo "  provider [name] [--model model]  Show or switch AI provider"
         echo "  model [name]             Show or switch AI model"
         echo "  agent {list|add|remove|show|reset}  Manage agents"
-        echo "  memory {read|write|ingest|promote|inject|status}  Memory system"
+        echo "  feature <name> [args]    Run a feature command (e.g. feature memory read)"
         echo "  attach                   Attach to tmux session"
         echo ""
         echo "Examples:"

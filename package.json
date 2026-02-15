@@ -4,15 +4,15 @@
   "description": "TinyClaw is a tiny agent that acts as your 24/7 personal assistant",
   "scripts": {
     "deploy": "cd ~/workspace/tinyclaw && GIT_MERGE_AUTOEDIT=no git pull && npm run restart",
-    "restart": "npm run build && npm run launchd:install && ~/.local/bin/tinyclaw restart",
+    "restart": "npm run build && npm run features:install && ~/.local/bin/tinyclaw restart",
     "build": "tsc",
     "discord": "node dist/channels/discord-client.js",
     "queue": "node dist/queue-processor.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "prepare": "husky",
-    "launchd:install": "bash scripts/launchd.sh install",
-    "launchd:uninstall": "bash scripts/launchd.sh uninstall"
+    "features:install": "bash scripts/features.sh install",
+    "features:uninstall": "bash scripts/features.sh uninstall"
   },
   "dependencies": {
     "discord.js": "^14.16.0",

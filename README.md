@@ -328,7 +328,7 @@ memory/
 
 ### Setup
 
-Memory cron is installed automatically with `npm run launchd:install` or `npm run restart`.
+Memory cron is installed automatically with `npm run features:install` or `npm run restart`.
 
 ## 📐 Architecture
 
