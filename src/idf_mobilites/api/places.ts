@@ -56,7 +56,7 @@ export async function searchPlaces(query: string, type?: string): Promise<Place[
 
     const cacheKey = `places:${query}:${type || ''}`;
     const data = await apiRequest<NavitiaPlacesResponse>(
-        '/v2/navitia/coverage/fr-idf/places',
+        'v2/navitia/coverage/fr-idf/places',
         params,
         cacheKey,
         CACHE_TTL.places,
@@ -114,7 +114,7 @@ export async function findNearbyStops(lat: string, lon: string, radius?: number)
     };
     if (radius) params.distance = String(radius);
 
-    const endpoint = `/v2/navitia/coverage/fr-idf/coords/${lon};${lat}/places_nearby`;
+    const endpoint = `v2/navitia/coverage/fr-idf/coords/${lon};${lat}/places_nearby`;
     const cacheKey = `nearby:${lat}:${lon}:${radius || ''}`;
     const data = await apiRequest<NavitiaPlacesNearbyResponse>(
         endpoint,

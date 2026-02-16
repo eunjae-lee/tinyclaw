@@ -22,7 +22,8 @@ export async function apiRequest<T>(
     }
 
     const creds = getCreds();
-    const url = new URL(endpoint, creds.baseUrl);
+    const base = creds.baseUrl.endsWith('/') ? creds.baseUrl : creds.baseUrl + '/';
+    const url = new URL(endpoint, base);
     for (const [k, v] of Object.entries(params)) {
         url.searchParams.set(k, v);
     }
