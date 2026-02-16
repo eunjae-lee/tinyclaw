@@ -120,7 +120,7 @@ export async function getNextDepartures(
 
     const cacheKey = `departures:${monitoringRef}:${lineRef || ''}`;
     const data = await apiRequest<StopMonitoringResponse>(
-        '/stop-monitoring',
+        'stop-monitoring',
         params,
         cacheKey,
         CACHE_TTL.departures,
