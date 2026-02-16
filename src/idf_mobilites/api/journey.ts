@@ -149,8 +149,8 @@ export async function planJourney(
         sections: j.sections.map((s) => ({
             type: s.type,
             mode: s.mode,
-            from: { name: s.from.name, id: s.from.id },
-            to: { name: s.to.name, id: s.to.id },
+            from: s.from ? { name: s.from.name, id: s.from.id } : { name: 'Unknown', id: '' },
+            to: s.to ? { name: s.to.name, id: s.to.id } : { name: 'Unknown', id: '' },
             departureDateTime: parseNavitiaDateTime(s.departure_date_time),
             arrivalDateTime: parseNavitiaDateTime(s.arrival_date_time),
             duration: s.duration,

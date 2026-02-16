@@ -75,7 +75,7 @@ export function formatJourney(journeys: Journey[], from: string, to: string): st
 
         let stepNum = 0;
         for (const s of j.sections) {
-            if (s.type === 'public_transport' && s.displayInfo) {
+            if (s.type === 'public_transport' && s.displayInfo && s.from && s.to) {
                 stepNum++;
                 const di = s.displayInfo;
                 lines.push(`  ${stepNum}. ${di.commercialMode} ${di.code || di.label} (Dir: ${di.direction})`);
@@ -85,7 +85,7 @@ export function formatJourney(journeys: Journey[], from: string, to: string): st
                 lines.push(`     Arrive:   ${formatTime(s.arrivalDateTime)}`);
                 lines.push(`     Duration: ${formatDuration(s.duration)}${s.stopCount ? ` (${s.stopCount} stops)` : ''}`);
                 lines.push('');
-            } else if (s.type === 'street_network' || s.type === 'transfer') {
+            } else if ((s.type === 'street_network' || s.type === 'transfer') && s.from && s.to) {
                 const mode = s.mode === 'walking' ? 'Walk' : (s.mode || s.type);
                 lines.push(`  >> ${mode}: ${s.from.name} -> ${s.to.name} (${formatDuration(s.duration)})`);
             }

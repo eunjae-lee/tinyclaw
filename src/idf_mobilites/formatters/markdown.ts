@@ -74,7 +74,7 @@ export function formatJourneyMd(journeys: Journey[], from: string, to: string): 
 
         let stepNum = 0;
         for (const s of j.sections) {
-            if (s.type === 'public_transport' && s.displayInfo) {
+            if (s.type === 'public_transport' && s.displayInfo && s.from && s.to) {
                 stepNum++;
                 const di = s.displayInfo;
                 lines.push(`${stepNum}. **${modeEmoji(di.commercialMode)} ${di.code || di.label}** (Direction: ${di.direction})`);
@@ -84,9 +84,9 @@ export function formatJourneyMd(journeys: Journey[], from: string, to: string): 
                 lines.push(`   - Arrive: ${formatTime(s.arrivalDateTime)}`);
                 if (s.stopCount) lines.push(`   - ${s.stopCount} stops`);
                 lines.push('');
-            } else if (s.type === 'street_network' && s.mode === 'walking' && s.duration > 60) {
+            } else if (s.type === 'street_network' && s.mode === 'walking' && s.duration > 60 && s.from && s.to) {
                 lines.push(`- Walk ${s.from.name} -> ${s.to.name} (${formatDuration(s.duration)})`);
-            } else if (s.type === 'transfer') {
+            } else if (s.type === 'transfer' && s.from) {
                 lines.push(`- Transfer at ${s.from.name} (${formatDuration(s.duration)})`);
             }
         }
