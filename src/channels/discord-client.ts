@@ -610,7 +610,9 @@ async function checkStreamingFiles(): Promise<void> {
                                     const settings = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8'));
                                     const agentConfig = settings.agents?.[session.agentId];
                                     const cwd = agentConfig?.working_directory || '';
-                                    const hint = `-# \`claude --resume ${session.sessionId}${cwd ? ` -c ${cwd}` : ''}\``;
+                                    const hint = cwd
+                                                        ? `-# \`(cd ${cwd} && claude --resume ${session.sessionId})\``
+                                                        : `-# \`claude --resume ${session.sessionId}\``;
                                     await thread.send(hint);
                                 }
                             } catch { /* best-effort */ }
@@ -782,7 +784,9 @@ async function checkOutgoingQueue(): Promise<void> {
                                     const settings = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8'));
                                     const agentConfig = settings.agents?.[session.agentId];
                                     const cwd = agentConfig?.working_directory || '';
-                                    const hint = `-# \`claude --resume ${session.sessionId}${cwd ? ` -c ${cwd}` : ''}\``;
+                                    const hint = cwd
+                                                        ? `-# \`(cd ${cwd} && claude --resume ${session.sessionId})\``
+                                                        : `-# \`claude --resume ${session.sessionId}\``;
                                     await thread.send(hint);
                                 }
                             } catch { /* best-effort */ }
