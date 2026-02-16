@@ -1,0 +1,14 @@
+{
+  "plists": [],
+  "skills": [
+    "idf",
+    "idf-itinerary",
+    "idf-departures",
+    "idf-search",
+    "idf-status"
+  ],
+  "command": {
+    "runner": "node",
+    "script": "dist/idf_mobilites/index.js"
+  }
+}
