@@ -111,14 +111,28 @@ function parseDepartures(data: StopMonitoringResponse): Departure[] {
     });
 }
 
+/**
+ * Convert a Navitia stop ID to a SIRI MonitoringRef.
+ * e.g. "stop_area:IDFM:65910" -> "STIF:StopArea:SP:65910:"
+ *      "stop_point:IDFM:12345" -> "STIF:StopPoint:Q:12345:"
+ */
+function toMonitoringRef(navitiaId: string): string {
+    const match = navitiaId.match(/^(stop_area|stop_point):IDFM:(\d+)$/);
+    if (!match) return navitiaId; // already in SIRI format or unknown
+    const [, type, id] = match;
+    if (type === 'stop_area') return `STIF:StopArea:SP:${id}:`;
+    return `STIF:StopPoint:Q:${id}:`;
+}
+
 export async function getNextDepartures(
     monitoringRef: string,
     lineRef?: string,
 ): Promise<{ departures: Departure[]; timestamp: string }> {
-    const params: Record<string, string> = { MonitoringRef: monitoringRef };
+    const siriRef = toMonitoringRef(monitoringRef);
+    const params: Record<string, string> = { MonitoringRef: siriRef };
     if (lineRef) params.LineRef = lineRef;
 
-    const cacheKey = `departures:${monitoringRef}:${lineRef || ''}`;
+    const cacheKey = `departures:${siriRef}:${lineRef || ''}`;
     const data = await apiRequest<StopMonitoringResponse>(
         'stop-monitoring',
         params,
