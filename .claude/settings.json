@@ -16,7 +16,9 @@
       "Bash(git log:*)",
       "Bash(git show:*)",
       "Bash(head:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(tinyclaw:*)",
+      "Bash(node:*)"
     ]
   }
 }
