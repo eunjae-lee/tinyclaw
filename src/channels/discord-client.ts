@@ -795,8 +795,10 @@ async function checkOutgoingQueue(): Promise<void> {
                     if (responseText) {
                         const chunks = splitMessage(responseText);
 
-                        if (pending.needsThread) {
+                        if (pending.needsThread || targetChannel.id !== pending.message.channel.id) {
                             // Thread: send all chunks inside the thread (no reply to original)
+                            // Also handles case where streaming already created the thread
+                            // (needsThread was set to false but targetChannel is the thread)
                             for (const chunk of chunks) {
                                 await targetChannel.send(chunk);
                             }
