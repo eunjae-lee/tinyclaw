@@ -9,12 +9,15 @@ import {
     Client, Events, GatewayIntentBits, Partials, Message, DMChannel, TextChannel,
     ThreadChannel, ChannelType, AttachmentBuilder,
     ButtonBuilder, ActionRowBuilder, ButtonStyle, ButtonInteraction,
+    MessageFlags,
 } from 'discord.js';
 import 'dotenv/config';
 import fs from 'fs';
 import path from 'path';
 import https from 'https';
 import http from 'http';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
 
 import {
     TINYCLAW_CONFIG_HOME, QUEUE_INCOMING, QUEUE_OUTGOING,
@@ -29,6 +32,10 @@ const LOG_FILE = path.join(TINYCLAW_CONFIG_HOME, 'logs/discord.log');
 const FILES_DIR = path.join(TINYCLAW_CONFIG_HOME, 'files');
 const BOT_THREADS_FILE = path.join(TINYCLAW_CONFIG_HOME, 'bot-threads.json');
 const PENDING_MESSAGES_FILE = path.join(TINYCLAW_CONFIG_HOME, 'pending-messages.json');
+
+const execFileAsync = promisify(execFile);
+const MLX_WHISPER_PATH = 'mlx_whisper';
+const TRANSCRIPTION_TIMEOUT_MS = 60_000;
 
 // Ensure directories exist
 [QUEUE_INCOMING, QUEUE_OUTGOING, path.dirname(LOG_FILE), FILES_DIR, APPROVALS_PENDING, APPROVALS_DECISIONS, QUEUE_CANCEL].forEach(dir => {
@@ -131,6 +138,69 @@ function downloadFile(url: string, destPath: string): Promise<void> {
             reject(err);
         });
     });
+}
+
+const TRANSCRIPTION_GLOSSARY = path.join(TINYCLAW_CONFIG_HOME, 'TRANSCRIPTION.md');
+
+/**
+ * Load glossary terms from TRANSCRIPTION.md as an initial prompt for Whisper.
+ * Extracts all non-heading, non-empty lines and joins them.
+ */
+function loadGlossaryPrompt(): string | null {
+    try {
+        if (!fs.existsSync(TRANSCRIPTION_GLOSSARY)) return null;
+        const content = fs.readFileSync(TRANSCRIPTION_GLOSSARY, 'utf8');
+        const terms = content
+            .split('\n')
+            .filter(line => line.trim() && !line.startsWith('#'))
+            .join('. ');
+        return terms || null;
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Transcribe an audio file using mlx_whisper.
+ * Returns the transcription text, or null if transcription fails.
+ */
+async function transcribeAudio(audioFilePath: string): Promise<string | null> {
+    const outputDir = path.join(FILES_DIR, 'transcriptions');
+    if (!fs.existsSync(outputDir)) {
+        fs.mkdirSync(outputDir, { recursive: true });
+    }
+
+    const args = [
+        audioFilePath,
+        '--output-dir', outputDir,
+        '--output-format', 'txt',
+    ];
+
+    const glossary = loadGlossaryPrompt();
+    if (glossary) {
+        args.push('--initial-prompt', glossary);
+    }
+
+    try {
+        await execFileAsync(MLX_WHISPER_PATH, args, {
+            timeout: TRANSCRIPTION_TIMEOUT_MS,
+        });
+
+        const baseName = path.basename(audioFilePath, path.extname(audioFilePath));
+        const txtFile = path.join(outputDir, `${baseName}.txt`);
+
+        if (fs.existsSync(txtFile)) {
+            const transcription = fs.readFileSync(txtFile, 'utf8').trim();
+            try { fs.unlinkSync(txtFile); } catch { /* best-effort cleanup */ }
+            return transcription || null;
+        }
+
+        log('WARN', `Transcription output file not found: ${txtFile}`);
+        return null;
+    } catch (err) {
+        log('ERROR', `Transcription failed for ${path.basename(audioFilePath)}: ${(err as Error).message}`);
+        return null;
+    }
 }
 
 // Track pending messages (waiting for response)
@@ -396,6 +466,9 @@ client.on(Events.MessageCreate, async (message: Message) => {
 
         // Download any attachments
         const downloadedFiles: string[] = [];
+        const voiceTranscriptions: string[] = [];
+        const isVoiceMessage = message.flags.has(MessageFlags.IsVoiceMessage);
+
         if (hasAttachments) {
             for (const [, attachment] of message.attachments) {
                 try {
@@ -404,8 +477,21 @@ client.on(Events.MessageCreate, async (message: Message) => {
                     const localPath = buildUniqueFilePath(FILES_DIR, filename);
 
                     await downloadFile(attachment.url, localPath);
-                    downloadedFiles.push(localPath);
                     log('INFO', `Downloaded attachment: ${path.basename(localPath)} (${attachment.contentType || 'unknown'})`);
+
+                    if (isVoiceMessage && attachment.contentType?.startsWith('audio/')) {
+                        log('INFO', `Transcribing voice message: ${path.basename(localPath)}`);
+                        const transcription = await transcribeAudio(localPath);
+                        if (transcription) {
+                            voiceTranscriptions.push(transcription);
+                            log('INFO', `Transcription complete (${transcription.length} chars)`);
+                        } else {
+                            voiceTranscriptions.push('[voice message: could not transcribe]');
+                            log('WARN', `Could not transcribe voice message: ${path.basename(localPath)}`);
+                        }
+                    } else {
+                        downloadedFiles.push(localPath);
+                    }
                 } catch (dlErr) {
                     log('ERROR', `Failed to download attachment ${attachment.name}: ${(dlErr as Error).message}`);
                 }
@@ -419,7 +505,7 @@ client.on(Events.MessageCreate, async (message: Message) => {
             messageText = messageText.replace(new RegExp(`<@!?${client.user.id}>`, 'g'), '').trim();
         }
 
-        log('INFO', `Message from ${sender}: ${messageText.substring(0, 50)}${downloadedFiles.length > 0 ? ` [+${downloadedFiles.length} file(s)]` : ''}...`);
+        log('INFO', `Message from ${sender}: ${messageText.substring(0, 50)}${downloadedFiles.length > 0 ? ` [+${downloadedFiles.length} file(s)]` : ''}${voiceTranscriptions.length > 0 ? ' [+voice msg]' : ''}...`);
 
         // Check for agent list command
         if (messageText.trim().match(/^[!/]agent$/i)) {
@@ -453,8 +539,14 @@ client.on(Events.MessageCreate, async (message: Message) => {
         // Show typing indicator
         await replyChannel.sendTyping();
 
-        // Build message text with file references
+        // Build message text with voice transcriptions and file references
         let fullMessage = messageText;
+        if (voiceTranscriptions.length > 0) {
+            const transcriptionText = voiceTranscriptions
+                .map(t => `[voice message transcription: "${t}"]`)
+                .join('\n');
+            fullMessage = fullMessage ? `${fullMessage}\n\n${transcriptionText}` : transcriptionText;
+        }
         if (downloadedFiles.length > 0) {
             const fileRefs = downloadedFiles.map(f => `[file: ${f}]`).join('\n');
             fullMessage = fullMessage ? `${fullMessage}\n\n${fileRefs}` : fileRefs;
