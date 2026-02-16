@@ -727,16 +727,8 @@ async function checkOutgoingQueue(): Promise<void> {
                                 log('WARN', `Failed to delete streaming message: ${(delErr as Error).message}`);
                             }
 
-                            // Send first chunk as a reply to the original user message (triggers notification)
-                            try {
-                                if (pending) {
-                                    await pending.message.reply(chunks[0]!);
-                                } else {
-                                    await targetChannel.send(chunks[0]!);
-                                }
-                            } catch {
-                                await targetChannel.send(chunks[0]!);
-                            }
+                            // Send first chunk to the thread (targetChannel is already the thread if one was created)
+                            await targetChannel.send(chunks[0]!);
                         } else {
                             // Short streaming: just edit in place (user is likely still watching)
                             try {
@@ -780,6 +772,8 @@ async function checkOutgoingQueue(): Promise<void> {
                             // Remap session from messageId key to thread.id key
                             remapSession(messageId, thread.id);
                             targetChannel = thread;
+                            pending.channel = thread;
+                            pending.needsThread = false;
 
                             // Send session resume hint
                             try {
