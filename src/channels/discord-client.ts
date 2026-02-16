@@ -23,7 +23,7 @@ import {
 } from '../lib/config';
 import { extractAgentPrefix } from '../lib/routing';
 import { sanitizeFileName, buildUniqueFilePath, splitMessage } from '../lib/discord-utils';
-import { remapSession } from '../lib/session-store';
+import { remapSession, getSession } from '../lib/session-store';
 
 const LOG_FILE = path.join(TINYCLAW_CONFIG_HOME, 'logs/discord.log');
 const FILES_DIR = path.join(TINYCLAW_CONFIG_HOME, 'files');
@@ -602,6 +602,18 @@ async function checkStreamingFiles(): Promise<void> {
                             pending.channel = thread;
                             pending.needsThread = false;
                             threadJustCreated = true;
+
+                            // Send session resume hint
+                            try {
+                                const session = getSession(thread.id);
+                                if (session) {
+                                    const settings = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8'));
+                                    const agentConfig = settings.agents?.[session.agentId];
+                                    const cwd = agentConfig?.working_directory || '';
+                                    const hint = `-# \`claude --resume ${session.sessionId}${cwd ? ` -c ${cwd}` : ''}\``;
+                                    await thread.send(hint);
+                                }
+                            } catch { /* best-effort */ }
                         } catch (threadErr) {
                             log('WARN', `Failed to create thread for streaming: ${(threadErr as Error).message}`);
                         }
@@ -768,6 +780,18 @@ async function checkOutgoingQueue(): Promise<void> {
                             // Remap session from messageId key to thread.id key
                             remapSession(messageId, thread.id);
                             targetChannel = thread;
+
+                            // Send session resume hint
+                            try {
+                                const session = getSession(thread.id);
+                                if (session) {
+                                    const settings = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8'));
+                                    const agentConfig = settings.agents?.[session.agentId];
+                                    const cwd = agentConfig?.working_directory || '';
+                                    const hint = `-# \`claude --resume ${session.sessionId}${cwd ? ` -c ${cwd}` : ''}\``;
+                                    await thread.send(hint);
+                                }
+                            } catch { /* best-effort */ }
                         } catch (threadErr) {
                             log('WARN', `Failed to create thread, falling back to channel reply: ${(threadErr as Error).message}`);
                             // Fall back to direct channel reply (targetChannel remains as-is)
