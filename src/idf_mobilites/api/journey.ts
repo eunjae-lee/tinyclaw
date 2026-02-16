@@ -124,7 +124,7 @@ export async function planJourney(
 
     const cacheKey = `journey:${fromPlace.id}:${toPlace.id}:${JSON.stringify(options)}`;
     const data = await apiRequest<NavitiaJourneyResponse>(
-        'v2/navitia/coverage/fr-idf/journeys',
+        'v2/navitia/journeys',
         params,
         cacheKey,
         CACHE_TTL.journeys,

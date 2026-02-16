@@ -38,11 +38,11 @@ interface NavitiaDisruptionsResponse {
 }
 
 export async function getDisruptions(lineId?: string): Promise<Disruption[]> {
-    let endpoint = 'v2/navitia/coverage/fr-idf/disruptions';
+    let endpoint = 'v2/navitia/disruptions';
     const params: Record<string, string> = { count: '50' };
 
     if (lineId) {
-        endpoint = `v2/navitia/coverage/fr-idf/lines/${lineId}/disruptions`;
+        endpoint = `v2/navitia/lines/${lineId}/disruptions`;
     }
 
     const cacheKey = `disruptions:${lineId || 'all'}`;
