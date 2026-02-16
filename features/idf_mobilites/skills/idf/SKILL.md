@@ -25,6 +25,10 @@ When the user refers to a station by its letter alias (e.g. "A", "from B to F"),
 
 When the user asks to "show my list" or "show aliases", display the table above.
 
+## User Preferences
+
+- When the user asks for a schedule/departures from **Ermont Halte** without specifying a direction, default to showing trains **towards Gare du Nord**.
+
 ## Available Commands
 
 ### Departures (timetable at a stop)
