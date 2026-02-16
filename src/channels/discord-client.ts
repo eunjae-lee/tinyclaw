@@ -464,6 +464,9 @@ client.on(Events.MessageCreate, async (message: Message) => {
         // Generate unique message ID
         const messageId = `${Date.now()}_${Math.random().toString(36).substring(7)}`;
 
+        // Show typing indicator early so the user sees feedback during transcription
+        await replyChannel.sendTyping();
+
         // Download any attachments
         const downloadedFiles: string[] = [];
         const voiceTranscriptions: string[] = [];
@@ -535,9 +538,6 @@ client.on(Events.MessageCreate, async (message: Message) => {
             await message.reply('Conversation reset! Next message will start a fresh conversation.');
             return;
         }
-
-        // Show typing indicator
-        await replyChannel.sendTyping();
 
         // Build message text with voice transcriptions and file references
         let fullMessage = messageText;
